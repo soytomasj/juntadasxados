@@ -90,13 +90,17 @@ export default function Home() {
         .select('*')
         .order('id', { ascending: false });
       
+      if (error) {
+        alert("❌ ERROR AL CARGAR DATOS: " + error.message);
+      }
+      
       if (data) setJuntadas(data);
       setLoading(false);
     }
     cargarDatos();
   }, []);
 
-  // 2. Publicar en la nube
+  // 2. Publicar en la nube (AHORA SÍ GRITA SI HAY ERROR)
   const publicar = async () => {
     if (!nuevoTitulo.trim() || !fechaSel || !horaSel.trim()) return alert("Completá título, fecha y hora.");
     
@@ -122,9 +126,9 @@ export default function Home() {
 
     const { data, error } = await supabase.from('juntadas').insert([nueva]).select();
 
-    // SI HAY ERROR, NOS TIRA UNA ALERTA EN LA CARA
     if (error) {
-      alert("ERROR DE SUPABASE: " + error.message);
+      alert("❌ ERROR DE SUPABASE AL PUBLICAR: " + error.message);
+      console.error(error);
     } else if (data) {
       setJuntadas([data[0], ...juntadas]);
       setMostrandoFormulario(false);
@@ -144,7 +148,8 @@ export default function Home() {
     });
 
     const { error } = await supabase.from('juntadas').update({ candidatos: nuevosCandidatos }).eq('id', juntadaId);
-    if (!error) setJuntadas(prev => prev.map(item => item.id === juntadaId ? { ...item, candidatos: nuevosCandidatos } : item));
+    if (error) alert("❌ ERROR AL VOTAR: " + error.message);
+    else setJuntadas(prev => prev.map(item => item.id === juntadaId ? { ...item, candidatos: nuevosCandidatos } : item));
   };
 
   // 4. Cambiar asistencia en la nube
@@ -169,17 +174,19 @@ export default function Home() {
     }
 
     const { error } = await supabase.from('juntadas').update({ confirmados, dudosos, rechazados, candidatos: nuevosCandidatos }).eq('id', juntadaId);
-    if (!error) setJuntadas(prev => prev.map(item => item.id === juntadaId ? { ...item, confirmados, dudosos, rechazados, candidatos: nuevosCandidatos } : item));
+    if (error) alert("❌ ERROR AL CONFIRMAR: " + error.message);
+    else setJuntadas(prev => prev.map(item => item.id === juntadaId ? { ...item, confirmados, dudosos, rechazados, candidatos: nuevosCandidatos } : item));
   };
 
   // 5. Eliminar de la nube
   const eliminarJuntada = async (juntadaId: number) => {
     if (!window.confirm("¿Seguro que querés eliminar esta juntada?")) return;
     const { error } = await supabase.from('juntadas').delete().eq('id', juntadaId);
-    if (!error) setJuntadas(prev => prev.filter(j => j.id !== juntadaId));
+    if (error) alert("❌ ERROR AL ELIMINAR: " + error.message);
+    else setJuntadas(prev => prev.filter(j => j.id !== juntadaId));
   };
 
-  // --- COMPARTIR POR WHATSAPP (SOLUCIÓN EMOJIS CON CÓDIGOS) ---
+  // --- COMPARTIR POR WHATSAPP ---
   const compartirWhatsApp = (j: any) => {
     const url = window.location.origin; 
     
