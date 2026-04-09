@@ -82,7 +82,7 @@ export default function Home() {
   const [tagsSel, setTagsSel] = useState<string[]>([]);
   const [notas, setNotas] = useState('');
 
-  // 1. Cargar datos al iniciar
+  // 1. Cargar datos al iniciar y escuchar en TIEMPO REAL
   useEffect(() => {
     async function cargarDatos() {
       const { data, error } = await supabase
@@ -97,7 +97,23 @@ export default function Home() {
       if (data) setJuntadas(data);
       setLoading(false);
     }
+    
+    // Hacemos la primera carga
     cargarDatos();
+
+    // Prendemos el canal de Supabase Realtime
+    const suscripcion = supabase
+      .channel('juntadas_channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'juntadas' }, (payload) => {
+        // Alguien tocó algo en la tabla, recargamos los datos sin F5
+        cargarDatos();
+      })
+      .subscribe();
+
+    // Limpiamos la conexión cuando se cierra la app
+    return () => {
+      supabase.removeChannel(suscripcion);
+    };
   }, []);
 
   // 2. Publicar en la nube (AHORA SÍ GRITA SI HAY ERROR)
