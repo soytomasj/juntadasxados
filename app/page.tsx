@@ -32,12 +32,12 @@ const ESTETICA_TARJETA = {
 const AMIGOS = ['Tomas', 'Koke', 'Tito', 'Uli', 'Pablo', 'Oscarcito'];
 
 const CREDENCIALES: Record<string, string> = {
-  'Tomas': '123',
-  'Koke': '123',
-  'Tito': '123',
-  'Uli': '123',
-  'Pablo': '123',
-  'Oscarcito': '123'
+  'Tomas': 'Tomasito1@',
+  'Koke': 'amoasofi',
+  'Tito': 'mazeteamo',
+  'Uli': 'jaddyl',
+  'Pablo': 'grecia',
+  'Oscarcito': 'adictoalol'
 };
 
 // --- NUEVOS TAGS ---
@@ -81,6 +81,14 @@ export default function Home() {
   const [candidatosSede, setCandidatosSede] = useState<string[]>([]);
   const [tagsSel, setTagsSel] = useState<string[]>([]);
   const [notas, setNotas] = useState('');
+
+  // 0. Cargar sesión guardada al entrar a la página
+  useEffect(() => {
+    const userGuardado = localStorage.getItem('juntadas_user');
+    if (userGuardado) {
+      setUsuarioLogueado(userGuardado);
+    }
+  }, []);
 
   // 1. Cargar datos al iniciar y escuchar en TIEMPO REAL
   useEffect(() => {
@@ -260,6 +268,7 @@ export default function Home() {
     
     if (CREDENCIALES[nombreSeleccionado] === passwordInput) {
       setUsuarioLogueado(nombreSeleccionado);
+      localStorage.setItem('juntadas_user', nombreSeleccionado); // <-- Guardamos la sesión
       setErrorLogin('');
     } else { 
       setErrorLogin('Contraseña incorrecta'); 
@@ -278,7 +287,9 @@ export default function Home() {
       {!usuarioLogueado && (
         <main className="min-h-screen bg-[#FDFDFF] flex items-center justify-center p-4">
           <motion.div variants={varFadeInUp} initial="hidden" animate="visible" className={ESTETICA_LOGIN.contenedor}>
-            <div className="text-center mb-6 text-violet-600 text-2xl italic font-black tracking-tighter">JX.</div>
+            <div className="flex justify-center mb-6">
+              <img src="https://i.imgur.com/KCZ5vLi.png" alt="Logo" className="h-10 w-auto object-contain" />
+            </div>
             <form onSubmit={intentarLogin} className="space-y-3">
               <select className={`${ESTETICA_LOGIN.input} ${RADIO_GENERAL} appearance-none cursor-pointer`} value={nombreSeleccionado} onChange={e => setNombreSeleccionado(e.target.value)}>
                 <option value="">¿Quién sos?</option>
@@ -382,8 +393,11 @@ export default function Home() {
       {usuarioLogueado && !mostrandoFormulario && (
         <main className="min-h-screen bg-[#FDFDFF] font-sans pb-16">
           <nav className="p-5 flex justify-between items-center max-w-4xl mx-auto">
-            <h1 className="text-xl font-black tracking-tighter text-slate-900">JUNTADAS<span className="text-violet-600">.</span></h1>
-            <button onClick={() => setUsuarioLogueado(null)} className={`text-[9px] font-black text-slate-400 border border-slate-200 px-4 py-1.5 ${RADIO_GENERAL} uppercase tracking-widest hover:bg-slate-50 transition-colors`}>Salir</button>
+            <img src="https://i.imgur.com/KCZ5vLi.png" alt="Logo" className="h-8 w-auto object-contain" />
+            <button onClick={() => {
+              setUsuarioLogueado(null);
+              localStorage.removeItem('juntadas_user'); // <-- Borramos la sesión al salir
+            }} className={`text-[9px] font-black text-slate-400 border border-slate-200 px-4 py-1.5 ${RADIO_GENERAL} uppercase tracking-widest hover:bg-slate-50 transition-colors`}>Salir</button>
           </nav>
 
           <div className="max-w-4xl mx-auto p-4">
