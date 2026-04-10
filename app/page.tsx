@@ -87,7 +87,6 @@ export default function Home() {
   const [tagsSel, setTagsSel] = useState<string[]>([]);
   const [notas, setNotas] = useState('');
   
-  // VISTA PREVIA DE LA JUNTADA (CRÍTICO PARA QUE NO FALLE)
   const [imagenJuntada, setImagenJuntada] = useState<File | null>(null);
   const [imagenJuntadaPreview, setImagenJuntadaPreview] = useState<string | null>(null);
 
@@ -343,7 +342,8 @@ export default function Home() {
             dudosos: [],
             rechazados: [],
             excusas: [], 
-            imagenUrl: finalImageUrl
+            imagenUrl: finalImageUrl,
+            pineado: false // Por defecto los eventos nuevos no nacen pineados
         };
 
         const { data, error } = await supabase.from('juntadas').insert([nueva]).select();
@@ -411,7 +411,7 @@ export default function Home() {
     const comentariosActuales = j.excusas || [];
     const misComentarios = comentariosActuales.filter((c: any) => c.usuario === usuarioLogueado);
 
-    if (misComentarios.length >= 6) {
+    if (misComentarios.length >= 3) {
       alert("Límite alcanzado: podés dejar un máximo de 3 comentarios por juntada.");
       return;
     }
@@ -450,6 +450,17 @@ export default function Home() {
       const msg = `🍾 *PROPUESTA IRL:* ${j.titulo} 🍾\n📆 *DÍA:* ${j.fechaDisplay}\n⏰ *HORA:* ${j.horaDisplay}${sedeTexto}\n\n👉 *Confirmá tu asistencia:* ${url}`;
       window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
     }
+  };
+
+  // --- FUNCIÓN EXCLUSIVA PARA EL ADMIN (TOMAS) PARA DESTACAR EVENTOS ---
+  const togglePin = async (juntadaId: number, estadoActual: boolean) => {
+    if (usuarioLogueado !== 'Tomas') return; // Seguridad extra
+    const nuevoEstado = !estadoActual;
+    
+    // Update local inmediato
+    setJuntadas(prev => prev.map(item => item.id === juntadaId ? { ...item, pineado: nuevoEstado } : item));
+    // Update en DB
+    await supabase.from('juntadas').update({ pineado: nuevoEstado }).eq('id', juntadaId);
   };
 
   const resetForm = () => {
@@ -501,6 +512,13 @@ export default function Home() {
   );
 
   const tagsAMostrarFormulario = tipoJuntada === 'IRL' ? TAGS_DISPONIBLES_IRL : TAGS_DISPONIBLES_DISCORD;
+
+  // --- ORDENAMIENTO: PINNEADOS PRIMERO ---
+  const juntadasOrdenadas = [...juntadas].sort((a, b) => {
+    if (a.pineado && !b.pineado) return -1;
+    if (!a.pineado && b.pineado) return 1;
+    return 0; // Si ambos tienen el mismo estado, respeta el orden original de la DB (por ID descendente)
+  });
 
   return (
     <>
@@ -629,9 +647,9 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* UPLOAD FOTO CON VISTA PREVIA ESTÉTICA */}
+              {/* UPLOAD FOTO CON VISTA PREVIA ESTÉTICA Y REALISTA */}
               <div className="pt-2">
-                  <div className={`relative w-full rounded-xl h-24 flex items-center justify-center transition-colors cursor-pointer overflow-hidden border-2 ${imagenJuntadaPreview ? 'border-transparent shadow-sm' : 'border-dashed border-violet-200 bg-violet-50 hover:bg-violet-100'}`}>
+                  <div className={`relative w-full rounded-xl h-40 flex items-center justify-center transition-colors cursor-pointer overflow-hidden border-2 ${imagenJuntadaPreview ? 'border-transparent shadow-sm' : 'border-dashed border-violet-200 bg-violet-50 hover:bg-violet-100'}`}>
                     <input
                       type="file"
                       accept="image/*"
@@ -765,7 +783,7 @@ export default function Home() {
 
           <div className="max-w-4xl mx-auto p-4">
             <AnimatePresence mode="popLayout">
-              {juntadas.length === 0 ? (
+              {juntadasOrdenadas.length === 0 ? (
                 <motion.div variants={varFadeInUp} initial="hidden" animate="visible" exit={{ opacity: 0 }} className={`bg-white border-2 border-dashed border-slate-200 ${RADIO_GENERAL} py-12 flex flex-col items-center justify-center text-center mt-2`}>
                   <div className="text-3xl mb-3 opacity-30">🗓️</div>
                   <p className="text-[10px] font-bold text-slate-500 mb-5 uppercase tracking-widest">Nada por acá...</p>
@@ -779,7 +797,7 @@ export default function Home() {
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                    {juntadas.map((j, index) => {
+                    {juntadasOrdenadas.map((j, index) => {
                       
                       const voyYo = (j.confirmados || []).includes(usuarioLogueado);
                       const dudaYo = (j.dudosos || []).includes(usuarioLogueado);
@@ -787,9 +805,10 @@ export default function Home() {
                       
                       const cantConfirmados = j.confirmados?.length || 0;
 
-                      const esCreador = usuarioLogueado === j.creador;
                       const esAdminTomas = usuarioLogueado === 'Tomas';
+                      const esCreador = usuarioLogueado === j.creador;
                       const puedeEliminarOEditar = esCreador || esAdminTomas;
+                      const estaPineado = j.pineado;
 
                       const esDiscord = j.tipo === 'DISCORD';
                       const esIRL = j.tipo === 'IRL' || !j.tipo;
@@ -813,7 +832,7 @@ export default function Home() {
                       }
 
                       const misComentarios = (j.excusas || []).filter((c: any) => c.usuario === usuarioLogueado);
-                      const puedeComentar = misComentarios.length < 6;
+                      const puedeComentar = misComentarios.length < 3;
 
                       return (
                         <motion.div 
@@ -821,31 +840,55 @@ export default function Home() {
                           transition={{ duration: 0.2, ease: "easeOut" }}
                           key={j.id || index}
                           variants={varFadeInUp}
-                          className={`relative ${ESTETICA_TARJETA.contenedor}`}
+                          className={`relative ${ESTETICA_TARJETA.contenedor} ${estaPineado ? 'ring-2 ring-yellow-400 ring-offset-2' : ''}`}
                         >
-                          {/* BOTONES DE CONTROL (ELIMINAR Y EDITAR) ARRIBA A LA DERECHA (APILADOS VERTICALMENTE) */}
-                          {puedeEliminarOEditar && (
-                            <div className="absolute top-6 right-6 z-30 flex flex-col gap-1.5 items-center justify-center">
-                              <motion.button
-                                initial={{ scale: 0 }} animate={{ scale: 1 }}
-                                whileHover={{ scale: 1.1 }}
-                                onClick={() => eliminarJuntada(j.id)}
-                                className={`flex items-center justify-center w-6 h-6 hover:text-red-500 rounded-full transition-colors font-bold cursor-pointer text-xs ${j.imagenUrl ? 'text-white/70 hover:bg-white/20 bg-black/20' : 'text-slate-400 hover:bg-red-50 bg-slate-100'}`}
-                                title="Eliminar juntada"
-                              >
-                                ✕
-                              </motion.button>
-                              <motion.button
-                                initial={{ scale: 0 }} animate={{ scale: 1 }}
-                                whileHover={{ scale: 1.1 }}
-                                onClick={() => abrirEdicion(j)}
-                                className={`flex items-center justify-center w-6 h-6 rounded-full transition-colors cursor-pointer ${j.imagenUrl ? 'text-white/70 hover:text-white hover:bg-white/20 bg-black/20' : 'text-slate-400 hover:text-violet-600 hover:bg-violet-50 bg-slate-100'}`}
-                                title="Editar juntada"
-                              >
-                                <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                              </motion.button>
-                            </div>
-                          )}
+                          {/* BOTONES DE CONTROL (ELIMINAR, EDITAR, PINEAR) ARRIBA A LA DERECHA EN COLUMNA */}
+                          <div className="absolute top-6 right-6 z-30 flex flex-col gap-1.5 items-center justify-center">
+                            {puedeEliminarOEditar && (
+                              <>
+                                <motion.button
+                                  initial={{ scale: 0 }} animate={{ scale: 1 }}
+                                  whileHover={{ scale: 1.1 }}
+                                  onClick={() => eliminarJuntada(j.id)}
+                                  className={`flex items-center justify-center w-6 h-6 hover:text-red-500 rounded-full transition-colors font-bold cursor-pointer text-xs ${j.imagenUrl ? 'text-white/70 hover:bg-white/20 bg-black/20' : 'text-slate-400 hover:bg-red-50 bg-slate-100'}`}
+                                  title="Eliminar juntada"
+                                >
+                                  ✕
+                                </motion.button>
+                                <motion.button
+                                  initial={{ scale: 0 }} animate={{ scale: 1 }}
+                                  whileHover={{ scale: 1.1 }}
+                                  onClick={() => abrirEdicion(j)}
+                                  className={`flex items-center justify-center w-6 h-6 rounded-full transition-colors cursor-pointer ${j.imagenUrl ? 'text-white/70 hover:text-white hover:bg-white/20 bg-black/20' : 'text-slate-400 hover:text-violet-600 hover:bg-violet-50 bg-slate-100'}`}
+                                  title="Editar juntada"
+                                >
+                                  <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                                </motion.button>
+                              </>
+                            )}
+                            
+                            {/* BOTÓN/ICONO DE PINEAR */}
+                            {(esAdminTomas || estaPineado) && (
+                                <motion.button
+                                  initial={{ scale: 0 }} animate={{ scale: 1 }}
+                                  whileHover={esAdminTomas ? { scale: 1.1 } : {}}
+                                  onClick={() => esAdminTomas ? togglePin(j.id, j.pineado) : null}
+                                  className={`flex items-center justify-center w-6 h-6 rounded-full transition-colors text-xs ${
+                                    esAdminTomas ? 'cursor-pointer' : 'cursor-default'
+                                  } ${
+                                    estaPineado 
+                                      ? (j.imagenUrl ? 'text-yellow-400 bg-black/40' : 'text-yellow-600 bg-yellow-100') // Activo
+                                      : (j.imagenUrl ? 'text-white/70 hover:text-white hover:bg-white/20 bg-black/20' : 'text-slate-400 hover:text-yellow-600 hover:bg-yellow-50 bg-slate-100') // Inactivo (Solo Tomas ve esto)
+                                  }`}
+                                  title={estaPineado ? "Evento destacado" : "Destacar evento"}
+                                >
+                                  {/* ICONO DE PIN (CHINCHE) */}
+                                  <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                                    <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z" />
+                                  </svg>
+                                </motion.button>
+                            )}
+                          </div>
 
                           {/* IDENTIDAD ARRIBA A LA IZQUIERDA (ALINEADOS HORIZONTALMENTE) */}
                           <div className="absolute top-6 left-6 z-20 flex flex-row gap-1.5 items-center">
@@ -1062,14 +1105,14 @@ export default function Home() {
                                 else if ((j.rechazados || []).includes(c.usuario)) ringColor = 'ring-2 ring-red-500 ring-offset-1';
 
                                 return (
-                                  <div key={idx} className="flex items-center gap-2 group relative py-1 hover:bg-slate-50 rounded-lg px-1 transition-colors">
-                                    <img src={getFotoUsuario(c.usuario)} className={`w-6 h-6 rounded-full object-cover shadow-sm shrink-0 ${ringColor}`} alt="avatar" />
+                                  <div key={idx} className="flex items-start gap-2 group relative py-1 hover:bg-slate-50 rounded-lg px-1 transition-colors">
+                                    <img src={getFotoUsuario(c.usuario)} className={`w-6 h-6 rounded-full object-cover shadow-sm mt-0.5 shrink-0 ${ringColor}`} alt="avatar" />
                                     <div className="flex-1 text-[10px] font-medium leading-tight line-clamp-3 break-words text-slate-600">
                                       <span className="font-black uppercase text-slate-800 mr-1">{c.usuario}:</span>
                                       {c.texto}
                                     </div>
                                     {c.usuario === usuarioLogueado && (
-                                      <button onClick={() => borrarComentario(j.id, c.texto)} className="text-slate-400 hover:text-red-500 font-bold text-[10px] transition-colors ml-2 px-1" title="Borrar comentario">✕</button>
+                                      <button onClick={() => borrarComentario(j.id, c.texto)} className="text-slate-400 hover:text-red-500 font-bold text-[10px] transition-colors ml-2 px-1 mt-0.5" title="Borrar comentario">✕</button>
                                     )}
                                   </div>
                                 );
