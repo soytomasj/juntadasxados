@@ -492,15 +492,14 @@ export default function Home() {
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                     {juntadas.map((j, index) => {
+                      // Determinar el estado visual o real
+                      const estadoVisual = excusaTemp?.id === j.id ? excusaTemp.estado : null;
                       
-                      // LÓGICA VISUAL INMEDIATA
-                      const isTempNose = excusaTemp?.id === j.id && excusaTemp?.estado === 'nose';
-                      const isTempPaso = excusaTemp?.id === j.id && excusaTemp?.estado === 'paso';
-                      const isTempActive = excusaTemp?.id === j.id;
-
-                      const voyYo = !isTempActive && (j.confirmados || []).includes(usuarioLogueado);
-                      const dudaYo = isTempNose || (!isTempActive && (j.dudosos || []).includes(usuarioLogueado));
-                      const pasoYo = isTempPaso || (!isTempActive && (j.rechazados || []).includes(usuarioLogueado));
+                      const voyYo = estadoVisual === 'voy' || (!estadoVisual && (j.confirmados || []).includes(usuarioLogueado));
+                      const dudaYo = estadoVisual === 'nose' || (!estadoVisual && (j.dudosos || []).includes(usuarioLogueado));
+                      const pasoYo = estadoVisual === 'paso' || (!estadoVisual && (j.rechazados || []).includes(usuarioLogueado));
+                      
+                      const cantConfirmados = j.confirmados?.length || 0;
 
                       const esCreador = usuarioLogueado === j.creador;
                       const esAdminTomas = usuarioLogueado === 'Tomas';
@@ -702,7 +701,9 @@ export default function Home() {
                                     placeholder="Explicá por qué (ej: Laburo, mi novia no me deja...)" 
                                     className="w-full h-10 px-4 bg-violet-50 border border-violet-200 rounded-xl text-[10px] font-bold text-slate-800 outline-none focus:ring-2 focus:ring-violet-300"
                                     onKeyDown={(e) => {
-                                      if (e.key === 'Enter') toggleAsistencia(j.id, excusaTemp.estado, (e.target as HTMLInputElement).value);
+                                      if (e.key === 'Enter' && excusaTemp) {
+                                        toggleAsistencia(j.id, excusaTemp.estado, (e.target as HTMLInputElement).value);
+                                      }
                                     }}
                                   />
                                   <p className="text-[8px] text-violet-500 mt-1 ml-1 font-black uppercase tracking-widest">Presioná ENTER para enviar</p>
