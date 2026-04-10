@@ -208,7 +208,7 @@ export default function Home() {
     const desmarcando = (!razon && (yaEsVoy || yaEsNose || yaEsPaso));
 
     // Si toca el MISMO botón que ya abrió el input pero no manda razón (cerrar modal)
-    if (excusaTemp?.id === juntadaId && excusaTemp.estado === estado && !razon) {
+    if (excusaTemp?.id === juntadaId && excusaTemp?.estado === estado && !razon) {
         setExcusaTemp(null);
         return;
     }
@@ -493,7 +493,7 @@ export default function Home() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
                     {juntadas.map((j, index) => {
                       // Determinar el estado visual o real
-                      const estadoVisual = excusaTemp?.id === j.id ? excusaTemp.estado : null;
+                      const estadoVisual = excusaTemp?.id === j.id ? excusaTemp?.estado : null;
                       
                       const voyYo = estadoVisual === 'voy' || (!estadoVisual && (j.confirmados || []).includes(usuarioLogueado));
                       const dudaYo = estadoVisual === 'nose' || (!estadoVisual && (j.dudosos || []).includes(usuarioLogueado));
@@ -701,7 +701,7 @@ export default function Home() {
                                     placeholder="Explicá por qué (ej: Laburo, mi novia no me deja...)" 
                                     className="w-full h-10 px-4 bg-violet-50 border border-violet-200 rounded-xl text-[10px] font-bold text-slate-800 outline-none focus:ring-2 focus:ring-violet-300"
                                     onKeyDown={(e) => {
-                                      if (e.key === 'Enter' && excusaTemp) {
+                                      if (e.key === 'Enter' && excusaTemp?.estado) {
                                         toggleAsistencia(j.id, excusaTemp.estado, (e.target as HTMLInputElement).value);
                                       }
                                     }}
