@@ -10,21 +10,21 @@ import { supabase } from './supabase';
 const RADIO_GENERAL = "rounded-2xl"; 
 
 const ESTETICA_LOGIN = (isDark: boolean) => ({
-  contenedor: `w-full max-w-[300px] p-6 ${RADIO_GENERAL} transition-colors duration-300 ${isDark ? 'bg-slate-900 border-slate-800 shadow-none' : 'bg-white shadow-lg shadow-slate-200/40 border-slate-100'} border`,
-  input: `w-full h-10 px-4 transition-all text-xs font-bold outline-none focus:ring-2 ${isDark ? 'bg-slate-800 border-slate-700 focus:ring-violet-500 text-white placeholder:text-slate-500' : 'bg-slate-50 border-slate-200 focus:ring-violet-200 text-slate-800 placeholder:text-slate-400'} border`,
+  contenedor: `w-full max-w-[300px] p-6 ${RADIO_GENERAL} transition-colors duration-300 ${isDark ? 'bg-slate-900 border-slate-800 shadow-none' : 'bg-white shadow-xl shadow-slate-200/60 border-slate-200/80'} border`,
+  input: `w-full h-10 px-4 transition-all text-xs font-bold outline-none focus:ring-2 ${isDark ? 'bg-slate-800 border-slate-700 focus:ring-violet-500 text-white placeholder:text-slate-500' : 'bg-slate-50 border-slate-200 focus:ring-violet-300 text-slate-800 placeholder:text-slate-400'} border`,
   boton: `font-black active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center text-xs w-full h-10 mt-1 ${RADIO_GENERAL} ${isDark ? 'bg-violet-600 text-white hover:bg-violet-500' : 'bg-violet-600 text-white shadow-md shadow-violet-200 hover:bg-violet-700'}`
 });
 
 const ESTETICA_FORMULARIO = (isDark: boolean) => ({
-  contenedor: `max-w-[360px] mx-auto p-6 ${RADIO_GENERAL} transition-colors duration-300 border ${isDark ? 'bg-slate-900 shadow-none border-slate-800' : 'bg-white shadow-lg shadow-slate-200/40 border-slate-100'}`,
-  input: `w-full h-10 px-4 transition-all text-xs font-bold outline-none focus:ring-2 ${isDark ? 'bg-slate-800 border-slate-700 focus:ring-violet-500 text-white placeholder:text-slate-500' : 'bg-slate-50 border-slate-200 focus:ring-violet-200 text-slate-800 placeholder:text-slate-400'} border`,
+  contenedor: `max-w-[360px] mx-auto p-5 ${RADIO_GENERAL} transition-colors duration-300 border ${isDark ? 'bg-slate-900 shadow-none border-slate-800' : 'bg-white shadow-xl shadow-slate-200/60 border-slate-200/80'}`,
+  input: `w-full h-10 px-4 transition-all text-xs font-bold outline-none focus:ring-2 ${isDark ? 'bg-slate-800 border-slate-700 focus:ring-violet-500 text-white placeholder:text-slate-500' : 'bg-slate-50 border-slate-200 focus:ring-violet-300 text-slate-800 placeholder:text-slate-400'} border`,
   botonPrincipal: `font-black active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center text-xs w-full h-12 mt-2 ${RADIO_GENERAL} ${isDark ? 'bg-violet-600 text-white hover:bg-violet-500' : 'bg-violet-600 text-white shadow-md shadow-violet-200 hover:bg-violet-700'}`,
-  btnOpcionInactivo: `flex-1 h-10 ${RADIO_GENERAL} text-[10px] font-black transition-all border-2 ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-white text-slate-400 border-slate-100'}`,
+  btnOpcionInactivo: `flex-1 h-10 ${RADIO_GENERAL} text-[10px] font-black transition-all border-2 ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`,
   btnOpcionActivo: `flex-1 h-10 ${RADIO_GENERAL} text-[10px] font-black transition-all border-2 bg-violet-600 text-white border-violet-600`,
 });
 
 const ESTETICA_TARJETA = (isDark: boolean) => ({
-  contenedor: `p-6 ${RADIO_GENERAL} border flex flex-col transition-colors duration-300 ${isDark ? 'bg-slate-900 border-slate-800 shadow-none' : 'bg-white shadow-lg shadow-slate-200/40 border-slate-100'}`,
+  contenedor: `p-5 ${RADIO_GENERAL} border flex flex-col transition-colors duration-300 ${isDark ? 'bg-slate-900 border-slate-800 shadow-none' : 'bg-white shadow-xl shadow-slate-200/60 border-slate-200/80'}`,
 });
 
 const AMIGOS_FALLBACK = ['Tomas', 'Koke', 'Tito', 'Uli', 'Pablo', 'Oscarcito'];
@@ -92,7 +92,7 @@ export default function Home() {
   const [discordData, setDiscordData] = useState<any>(null);
   const [discordLoading, setDiscordLoading] = useState(true);
 
-  // 1. INICIALIZACIÓN BÁSICA (Solo corre al montar la página)
+  // 1. INICIALIZACIÓN BÁSICA
   useEffect(() => {
     setIsMounted(true);
     const temaLocal = localStorage.getItem('tema_juntadas');
@@ -103,7 +103,7 @@ export default function Home() {
     if (userGuardado) setUsuarioLogueado(userGuardado);
   }, []);
 
-  // 2. CARGA DE DATOS AISLADA (Supabase y Discord)
+  // 2. CARGA DE DATOS AISLADA
   useEffect(() => {
     async function cargarDatos() {
       const [resJuntadas, resUsuarios] = await Promise.all([
@@ -121,43 +121,28 @@ export default function Home() {
     const subJuntadas = supabase.channel('juntadas_channel').on('postgres_changes', { event: '*', schema: 'public', table: 'juntadas' }, () => cargarDatos()).subscribe();
     const subUsuarios = supabase.channel('usuarios_channel').on('postgres_changes', { event: '*', schema: 'public', table: 'usuarios' }, () => cargarDatos()).subscribe();
 
-    // Fetch de Discord optimizado con anti-caché
     const fetchDiscord = async () => {
-      // Usamos el timestamp para obligar al navegador a no usar la versión guardada en caché
-      const noCacheTimestamp = new Date().getTime();
-      const discordUrl = `https://discord.com/api/guilds/730941554537005137/widget.json?t=${noCacheTimestamp}`;
-      
+      const timestamp = new Date().getTime();
       try {
-        const res = await fetch(discordUrl);
-        if (res.ok) {
-          const data = await res.json();
-          setDiscordData(data);
-        } else if (res.status === 403) {
-          setDiscordData({ errorMensaje: 'FALTA ACTIVAR EL WIDGET EN LOS AJUSTES DE DISCORD' });
+        const res = await fetch(`/api/discord?t=${timestamp}`);
+        const data = await res.json();
+        
+        if (data.errorMensaje) {
+          setDiscordData((prev: any) => prev && prev.channels ? prev : data);
         } else {
-          setDiscordData({ errorMensaje: `ERROR DE DISCORD: ${res.status}` });
+          setDiscordData(data);
         }
       } catch (error) {
-        console.error('Error fetching Discord data', error);
-        // Puente para adblockers o CORS
-        try {
-          const proxyRes = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(discordUrl)}`);
-          if (proxyRes.ok) {
-            const proxyData = await proxyRes.json();
-            setDiscordData(proxyData);
-          } else {
-             setDiscordData({ errorMensaje: 'BLOQUEADO POR EL NAVEGADOR (ADBLOCK)' });
-          }
-        } catch(e) {
-          setDiscordData({ errorMensaje: 'ERROR DE CONEXIÓN' });
-        }
+        console.error('Error al contactar API Discord', error);
+        setDiscordData((prev: any) => prev && prev.channels ? prev : { errorMensaje: 'ERROR DE CONEXIÓN LOCAL' });
       } finally {
         setDiscordLoading(false);
       }
     };
     
     fetchDiscord();
-    // Refresco más veloz: cada 15 segundos para que sea casi instantáneo
+    // SOLUCIÓN F5: La página consulta a tu servidor cada 15 segundos (15000ms).
+    // Tu servidor maneja la caché interna para no banearte. UX perfecta.
     const discordInterval = setInterval(fetchDiscord, 15000);
 
     return () => {
@@ -178,7 +163,6 @@ export default function Home() {
     }
   }, [usuarioLogueado, usuariosDB]);
 
-  // Guardar preferencia de tema manualmente con el botón
   const toggleTema = async () => {
     const nuevoTema = !isDark;
     setIsDark(nuevoTema);
@@ -208,7 +192,6 @@ export default function Home() {
       setUsuarioLogueado(nombreSeleccionado);
       localStorage.setItem('juntadas_user', nombreSeleccionado);
       setErrorLogin('');
-      // Sincronizar tema post-login
       if(user.tema_oscuro !== undefined) {
         setIsDark(user.tema_oscuro);
         localStorage.setItem('tema_juntadas', user.tema_oscuro ? 'dark' : 'light');
@@ -338,7 +321,6 @@ export default function Home() {
     const mins = String(date.getMinutes()).padStart(2, '0');
     setHoraSel(`${hh}:${mins}`);
     
-    // Asignación de sede para el modo edición
     if (j.esSedePersonalizada) {
         setOpcionSede('CUSTOM');
         setSedePersonalizadaInput(j.sedeFinal || '');
@@ -360,17 +342,8 @@ export default function Home() {
   const publicar = async () => {
     if (!nuevoTitulo.trim() || !fechaSel || !horaSel.trim()) return alert("Completá título, fecha y hora.");
     if (tipoJuntada === 'IRL' && opcionSede === 'CUSTOM' && !sedePersonalizadaInput.trim()) return alert("Ingresá la sede personalizada.");
+    if (!juntadaEnEdicion && !imagenJuntada) return alert("¡Tenés que agregar una foto de portada sí o sí!");
     
-    // Validación de imagen obligatoria
-    if (!juntadaEnEdicion && !imagenJuntada) {
-        return alert("¡Tenés que agregar una foto de portada sí o sí!");
-    } else if (juntadaEnEdicion) {
-        const jActual = juntadas.find(x => x.id === juntadaEnEdicion);
-        if (!imagenJuntada && !jActual?.imagenUrl) {
-            return alert("¡Tenés que agregar una foto de portada sí o sí!");
-        }
-    }
-
     setIsUploading(true);
 
     let finalImageUrl = null;
@@ -392,7 +365,6 @@ export default function Home() {
 
     if (juntadaEnEdicion) {
         const jActual = juntadas.find(x => x.id === juntadaEnEdicion);
-        
         let nuevosCandidatos = [];
         if (tipoJuntada === 'IRL' && opcionSede === 'VOTACION') {
             const oldCandidatos = jActual?.candidatos || [];
@@ -417,12 +389,7 @@ export default function Home() {
             imagenUrl: finalImageUrl
         };
 
-        const { error } = await supabase.from('juntadas').update(updateData).eq('id', juntadaEnEdicion);
-        if (error) alert("❌ ERROR AL ACTUALIZAR: " + error.message);
-        else {
-            setMostrandoFormulario(false);
-            resetForm();
-        }
+        await supabase.from('juntadas').update(updateData).eq('id', juntadaEnEdicion);
     } else {
         const nueva = {
             creador: usuarioLogueado,
@@ -444,14 +411,10 @@ export default function Home() {
             imagenUrl: finalImageUrl,
             pineado: false
         };
-
-        const { data, error } = await supabase.from('juntadas').insert([nueva]).select();
-        if (error) alert("❌ ERROR AL PUBLICAR: " + error.message);
-        else if (data) {
-            setMostrandoFormulario(false);
-            resetForm();
-        }
+        await supabase.from('juntadas').insert([nueva]);
     }
+    setMostrandoFormulario(false);
+    resetForm();
     setIsUploading(false);
   };
 
@@ -549,7 +512,6 @@ export default function Home() {
   const togglePin = async (juntadaId: number, estadoActual: boolean) => {
     if (usuarioLogueado !== 'Tomas') return; 
     const nuevoEstado = !estadoActual;
-    
     setJuntadas(prev => prev.map(item => item.id === juntadaId ? { ...item, pineado: nuevoEstado } : item));
     await supabase.from('juntadas').update({ pineado: nuevoEstado }).eq('id', juntadaId);
   };
@@ -571,6 +533,7 @@ export default function Home() {
 
   const formatearFechaDisplay = (fechaStr: string) => {
     if (!fechaStr) return '';
+    // Usamos split para evitar bugs con regex en distintos navegadores
     const [y, m, d] = fechaStr.split('-');
     const dateObj = new Date(Number(y), Number(m) - 1, Number(d));
     const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -610,7 +573,7 @@ export default function Home() {
   };
 
   if (loading || !isMounted) return (
-    <div className={`min-h-screen ${isDark ? 'bg-slate-950' : 'bg-[#FDFDFF]'} flex items-center justify-center transition-colors duration-300`}>
+    <div className={`min-h-screen ${isDark ? 'bg-slate-950' : 'bg-[#F4F6F8]'} flex items-center justify-center transition-colors duration-300`}>
       <div className="animate-spin text-violet-600 text-2xl">⏳</div>
     </div>
   );
@@ -633,7 +596,6 @@ export default function Home() {
     return b.id - a.id; 
   });
 
-  // Solo buscamos canales de voz que tengan gente
   const canalesConGente = discordData?.channels?.map((c: any) => {
     const miembros = discordData.members?.filter((m: any) => m.channel_id === c.id) || [];
     return { ...c, members: miembros };
@@ -641,7 +603,7 @@ export default function Home() {
 
   return (
     <>
-      <div className={`min-h-screen ${isDark ? 'bg-slate-950' : 'bg-[#FDFDFF]'} transition-colors duration-300 font-sans`}>
+      <div className={`min-h-screen ${isDark ? 'bg-slate-950' : 'bg-[#F4F6F8]'} transition-colors duration-300 font-sans`}>
         {/* --- VISTA LOGIN --- */}
         {!usuarioLogueado && (
           <main className="flex items-center justify-center p-4 min-h-screen">
@@ -829,8 +791,10 @@ export default function Home() {
         {/* --- DASHBOARD --- */}
         {usuarioLogueado && !mostrandoFormulario && (
           <main className="pb-16 min-h-screen">
-            <nav className="p-5 flex justify-between items-center max-w-4xl mx-auto relative z-50">
-              <img src="https://i.imgur.com/5hJH1kn.png" alt="Logo" className={`h-8 w-auto object-contain transition-all ${isDark ? 'invert opacity-90' : ''}`} />
+            
+            {/* NAV BAR SUPERIOR */}
+            <nav className="p-4 lg:p-6 flex justify-between items-center max-w-6xl mx-auto relative z-50">
+              <img src="https://i.imgur.com/5hJH1kn.png" alt="Logo" className={`h-8 lg:h-10 w-auto object-contain transition-all ${isDark ? 'invert opacity-90' : ''}`} />
               
               <div className="flex items-center gap-3">
                   <button 
@@ -900,7 +864,7 @@ export default function Home() {
 
                                   <div className={`flex flex-col gap-1.5 pt-2 border-t ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
                                       <label className={`text-[9px] font-black ml-1 ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>🔒 Contraseña Actual (Opcional)</label>
-                                      <input type="password" placeholder="Solo requerida si cambiás tu clave" value={passwordVieja} onChange={e => setPasswordVieja(e.target.value)} className={`w-full h-8 px-3 rounded-lg text-[10px] font-bold outline-none focus:ring-1 border ${isDark ? 'bg-violet-900/30 border-violet-800 text-white focus:ring-violet-500 placeholder:text-slate-500' : 'bg-white border-violet-200 text-slate-800 focus:ring-violet-400 placeholder:text-slate-400'}`} />
+                                      <input type="password" placeholder="Solo requerida si cambiás tu clave" value={passwordVieja} onChange={e => setPasswordVieja(e.target.value)} className={`w-full h-8 px-3 rounded-lg text-[10px] font-bold outline-none focus:ring-1 border ${isDark ? 'bg-violet-900/30 border-violet-800 text-white focus:ring-violet-500 placeholder:text-slate-500' : 'bg-violet-50 border-violet-200 text-slate-800 focus:ring-violet-400 placeholder:text-slate-400'}`} />
                                   </div>
 
                                   <div className="flex flex-col gap-2 mt-2">
@@ -924,85 +888,26 @@ export default function Home() {
               </div>
             </nav>
 
-            <div className="max-w-4xl mx-auto p-4">
-              {/* --- WIDGET DISCORD --- */}
-              <motion.div 
-                initial={{ opacity: 0, y: 15 }} 
-                animate={{ opacity: 1, y: 0 }} 
-                transition={{ duration: 0.3 }} 
-                className={`mb-6 p-5 ${RADIO_GENERAL} border transition-colors duration-300 ${isDark ? 'bg-[#5865F2]/10 border-[#5865F2]/20' : 'bg-[#5865F2]/5 border-[#5865F2]/10 shadow-sm'}`}
-              >
-                <div className="flex justify-between items-center mb-4">
-                  <div className="flex items-center gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 127.14 96.36" fill="currentColor" className={`w-4 h-4 ${isDark ? 'text-[#5865F2]' : 'text-[#5865F2]'}`}>
-                      <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1,105.25,105.25,0,0,0,32.19-16.14h0C127.86,52.43,121.56,29.1,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.31,60,73.31,53s5-12.74,11.43-12.74S96.3,46,96.19,53,91.08,65.69,84.69,65.69Z"/>
-                    </svg>
-                    <h3 className={`text-[11px] font-black uppercase tracking-widest ${isDark ? 'text-white' : 'text-slate-800'}`}>
-                      {discordData?.name || 'Servidor Discord'}
-                    </h3>
-                  </div>
+            {/* --- CONTENEDOR PRINCIPAL RESPONSIVE --- */}
+            <div className="max-w-6xl mx-auto p-4 flex flex-col lg:flex-row gap-6 lg:gap-12 items-start">
+              
+              {/* --- ZONA IZQUIERDA: PROPUESTAS --- */}
+              <div className="w-full lg:flex-1 order-2 lg:order-1 space-y-6">
+                
+                {/* Agregado -mt-2 para subir el header y alinearlo con Discord */}
+                <div className="flex justify-between items-end mb-4 px-1 -mt-2">
+                  <h2 className={`text-2xl font-black tracking-tighter uppercase ${isDark ? 'text-white' : 'text-slate-900'}`}>PROPUESTAS</h2>
+                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { resetForm(); setMostrandoFormulario(true); }} className={`bg-violet-600 text-white font-black shadow-md shadow-violet-200 hover:bg-violet-700 transition-all uppercase tracking-widest flex items-center justify-center text-[10px] px-4 h-8 ${RADIO_GENERAL} ${isDark ? 'shadow-none' : ''}`}>+ CREAR</motion.button>
                 </div>
-
-                {discordLoading ? (
-                  <div className="animate-pulse flex gap-2">
-                    <div className={`w-8 h-8 rounded-full ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}></div>
-                    <div className={`w-8 h-8 rounded-full ${isDark ? 'bg-slate-800' : 'bg-slate-200'}`}></div>
-                  </div>
-                ) : discordData && !discordData.errorMensaje ? (
-                  <div className="space-y-5">
-                    {canalesConGente.length > 0 ? (
-                        <div className="space-y-4">
-                        {canalesConGente.map((c: any) => (
-                            <div key={c.id}>
-                            <p className={`text-[9px] font-black uppercase tracking-widest mb-2 flex items-center gap-1.5 ${isDark ? 'text-[#5865F2]' : 'text-[#5865F2]'}`}>
-                                🔊 {c.name}
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                                {c.members.map((m: any) => (
-                                <div key={m.id} className={`flex items-center gap-2 p-1.5 pr-3 rounded-full border transition-colors ${isDark ? 'bg-slate-900 border-slate-800 hover:border-[#5865F2]/50' : 'bg-white border-slate-200 shadow-sm hover:border-[#5865F2]/40'}`}>
-                                    <div className="relative shrink-0">
-                                    <img src={m.avatar_url} alt={m.username} className="w-7 h-7 rounded-full object-cover" />
-                                    <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 ${isDark ? 'border-slate-900' : 'border-white'} ${m.status === 'online' ? 'bg-green-500' : m.status === 'idle' ? 'bg-yellow-500' : 'bg-slate-500'}`}></span>
-                                    </div>
-                                    <div className="flex flex-col justify-center">
-                                    <span className={`text-[10px] font-black leading-tight ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{m.username}</span>
-                                    {m.game && (
-                                        <span className="text-[7px] font-bold text-[#5865F2] uppercase leading-tight line-clamp-1">{m.game.name}</span>
-                                    )}
-                                    </div>
-                                </div>
-                                ))}
-                            </div>
-                            </div>
-                        ))}
-                        </div>
-                    ) : (
-                        <p className={`text-[10px] font-bold uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
-                            Silencio total. Nadie en chat de voz 😴
-                        </p>
-                    )}
-                  </div>
+                
+                {juntadasOrdenadas.length === 0 ? (
+                  <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={`border-2 border-dashed ${RADIO_GENERAL} py-12 flex flex-col items-center justify-center text-center mt-2 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300/60'}`}>
+                    <div className="text-3xl mb-3 opacity-30">🗓️</div>
+                    <p className={`text-[10px] font-bold mb-5 uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Nada por acá...</p>
+                    <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { resetForm(); setMostrandoFormulario(true); }} className={`bg-violet-600 text-white font-black shadow-md shadow-violet-200 hover:bg-violet-700 transition-all uppercase tracking-widest flex items-center justify-center text-xs px-6 h-10 ${RADIO_GENERAL} ${isDark ? 'shadow-none' : ''}`}>+ CREAR</motion.button>
+                  </motion.div>
                 ) : (
-                  <p className={`text-[10px] font-bold uppercase tracking-widest text-red-500`}>
-                    {discordData?.errorMensaje || 'NO SE PUDO CARGAR DISCORD'}
-                  </p>
-                )}
-              </motion.div>
-
-              {juntadasOrdenadas.length === 0 ? (
-                <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={`border-2 border-dashed ${RADIO_GENERAL} py-12 flex flex-col items-center justify-center text-center mt-2 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
-                  <div className="text-3xl mb-3 opacity-30">🗓️</div>
-                  <p className={`text-[10px] font-bold mb-5 uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Nada por acá...</p>
-                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { resetForm(); setMostrandoFormulario(true); }} className={`bg-violet-600 text-white font-black shadow-md shadow-violet-200 hover:bg-violet-700 transition-all uppercase tracking-widest flex items-center justify-center text-xs px-6 h-10 ${RADIO_GENERAL} ${isDark ? 'shadow-none' : ''}`}>+ PROPONER</motion.button>
-                </motion.div>
-              ) : (
-                <div className="space-y-6">
-                  <div className="flex justify-between items-end mb-2 px-1">
-                    <h2 className={`text-2xl font-black tracking-tighter uppercase ${isDark ? 'text-white' : 'text-slate-950'}`}>PROPUESTAS</h2>
-                    <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { resetForm(); setMostrandoFormulario(true); }} className={`bg-violet-600 text-white font-black hover:bg-violet-700 transition-all uppercase tracking-widest flex items-center justify-center text-[10px] px-4 h-8 ${RADIO_GENERAL}`}>+ NUEVA</motion.button>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-5 items-start">
                     {juntadasOrdenadas.map((j) => {
                       
                       const voyYo = (j.confirmados || []).includes(usuarioLogueado);
@@ -1046,7 +951,7 @@ export default function Home() {
                           initial={{ opacity: 0, y: 15 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ duration: 0.3 }}
-                          className={`relative ${ESTETICA_TARJETA(isDark).contenedor} ${estadoT.texto.includes('EXPIRADO') ? (isDark ? 'opacity-50' : 'opacity-60 grayscale-[30%]') : ''} ${estaPineado && !estadoT.texto.includes('EXPIRADO') ? (isDark ? 'ring-2 ring-yellow-500 ring-offset-2 ring-offset-slate-950 border-transparent' : 'ring-2 ring-yellow-400 ring-offset-2 ring-offset-white border-transparent') : ''}`}
+                          className={`relative ${ESTETICA_TARJETA(isDark).contenedor} ${estadoT.texto.includes('EXPIRADO') ? (isDark ? 'opacity-50' : 'opacity-60 grayscale-[30%]') : ''} ${estaPineado && !estadoT.texto.includes('EXPIRADO') ? (isDark ? 'ring-2 ring-yellow-500 ring-offset-2 ring-offset-slate-950 border-transparent' : 'ring-2 ring-yellow-400 ring-offset-2 ring-offset-slate-100 border-transparent') : ''}`}
                         >
                           {/* BOTONES DE CONTROL */}
                           <div className="absolute top-3 right-3 z-30 flex flex-col gap-1.5 items-center justify-center">
@@ -1094,7 +999,7 @@ export default function Home() {
 
                           {/* IDENTIDAD */}
                           <div className="absolute top-3 left-3 z-20 flex flex-row gap-1.5 items-center">
-                            <span className={`${j.imagenUrl ? 'bg-black/40 backdrop-blur-md text-white border-white/10' : (esDiscord ? (isDark ? 'bg-[#5865F2]/20 text-[#5865F2] border-[#5865F2]/30' : 'bg-[#5865F2]/10 text-[#5865F2] border-[#5865F2]/20') : (isDark ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/50' : 'bg-emerald-50 text-emerald-600 border-emerald-100'))} text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest border shadow-sm flex items-center gap-1.5`}>
+                            <span className={`${j.imagenUrl ? 'bg-black/40 backdrop-blur-md text-white border-white/10' : (esDiscord ? (isDark ? 'bg-[#5865F2]/20 text-[#5865F2] border-[#5865F2]/30' : 'bg-[#5865F2]/10 text-[#5865F2] border-[#5865F2]/20') : (isDark ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/50' : 'bg-emerald-50 text-emerald-600 border-emerald-200'))} text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest border shadow-sm flex items-center gap-1.5`}>
                                 {esDiscord ? (
                                     <>
                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 127.14 96.36" fill="currentColor" className="w-3 h-3 text-white drop-shadow-sm">
@@ -1104,7 +1009,7 @@ export default function Home() {
                                     </>
                                 ) : '📍 IRL'}
                             </span>
-                            <span className={`${j.imagenUrl ? 'bg-black/40 backdrop-blur-md text-white border-white/10' : (isDark ? 'bg-violet-900/30 text-violet-300 border-violet-800/50' : 'bg-violet-50 text-violet-600 border-violet-100')} text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest border shadow-sm flex items-center gap-1.5`}>
+                            <span className={`${j.imagenUrl ? 'bg-black/40 backdrop-blur-md text-white border-white/10' : (isDark ? 'bg-violet-900/30 text-violet-300 border-violet-800/50' : 'bg-violet-50 text-violet-600 border-violet-200')} text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest border shadow-sm flex items-center gap-1.5`}>
                                 <img src={getFotoUsuario(j.creador)} className="w-3.5 h-3.5 rounded-full object-cover" alt="creador" />
                                 {j.creador}
                             </span>
@@ -1112,19 +1017,19 @@ export default function Home() {
 
                           {/* --- HEADER CON IMAGEN --- */}
                           {j.imagenUrl ? (
-                            <div className="relative -mx-6 -mt-6 mb-4 p-6 rounded-t-2xl overflow-hidden min-h-[180px] flex flex-col justify-end">
+                            <div className="relative -mx-5 -mt-5 mb-4 p-5 rounded-t-2xl overflow-hidden min-h-[160px] flex flex-col justify-end">
                               <div className="absolute inset-0 bg-cover bg-center z-0" style={{ backgroundImage: `url(${j.imagenUrl})` }} />
                               <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-900/60 to-slate-900/10 z-10" />
                               
-                              {/* Posicionamiento absoluto en la parte inferior con margen '3' */}
-                              <div className="absolute bottom-3 left-6 right-3 z-20 flex flex-col gap-1.5 pt-16">
-                                <h3 className="text-2xl font-black text-white leading-none tracking-tight drop-shadow-md pr-8">{j.titulo}</h3>
+                              {/* Posicionamiento absoluto en la parte inferior */}
+                              <div className="absolute bottom-3 left-5 right-3 z-20 flex flex-col gap-1.5 pt-16">
+                                <h3 className="text-xl font-black text-white leading-none tracking-tight drop-shadow-md pr-8">{j.titulo}</h3>
                                 
                                 <div className="flex items-center flex-wrap gap-2 text-slate-200 drop-shadow-md">
                                   <span className="text-sm">📅</span>
-                                  <p className="text-xs font-bold">{j.fechaDisplay} — <span className="text-white">{j.horaDisplay}</span></p>
+                                  <p className="text-[10px] font-bold">{j.fechaDisplay} — <span className="text-white">{j.horaDisplay}</span></p>
                                   
-                                  <span className={`${estadoT.color} bg-opacity-90 text-white text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest shadow-sm`}>
+                                  <span className={`${estadoT.color} bg-opacity-90 text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm`}>
                                     {estadoT.texto}
                                   </span>
                                 </div>
@@ -1132,15 +1037,15 @@ export default function Home() {
                                 {esIRL && (
                                   (j.esSedeFija || j.esSedePersonalizada || esIrremontable) ? (
                                      <div className="flex items-center gap-1.5 drop-shadow-md">
-                                        <span className="text-sm">{iconoSede}</span>
-                                        <span className="bg-white text-slate-900 border border-slate-200 text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
+                                        <span className="text-xs">{iconoSede}</span>
+                                        <span className="bg-white text-slate-900 border border-slate-200 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
                                             {(j.esSedeFija || j.esSedePersonalizada) ? j.sedeFinal : `${sedeConfirmada} VOTADA COMO SEDE`}
                                         </span>
                                     </div>
                                   ) : (
                                      <div className="flex items-center gap-1.5 drop-shadow-md">
-                                        <span className="text-sm">{iconoSede}</span>
-                                        <span className="bg-yellow-400 text-yellow-950 text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
+                                        <span className="text-xs">{iconoSede}</span>
+                                        <span className="bg-yellow-400 text-yellow-950 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
                                             SEDE EN VOTACIÓN
                                         </span>
                                     </div>
@@ -1150,16 +1055,16 @@ export default function Home() {
                             </div>
                           ) : (
                             <>
-                                <div className="mb-2.5 mt-16 pr-8 relative">
+                                <div className="mb-2.5 mt-14 pr-8 relative">
                                   <h3 className={`text-xl font-black leading-none tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>{j.titulo}</h3>
                                 </div>
                                 
                                 <div className="flex flex-col gap-1.5 mb-4">
                                   <div className={`flex items-center flex-wrap gap-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                    <span className="text-sm">📅</span>
-                                    <p className="text-xs font-bold">{j.fechaDisplay} — <span className={isDark ? 'text-white' : 'text-slate-950'}>{j.horaDisplay}</span></p>
+                                    <span className="text-xs">📅</span>
+                                    <p className="text-[10px] font-bold">{j.fechaDisplay} — <span className={isDark ? 'text-white' : 'text-slate-950'}>{j.horaDisplay}</span></p>
 
-                                    <span className={`${estadoT.color} text-white text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest shadow-sm`}>
+                                    <span className={`${estadoT.color} text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm`}>
                                       {estadoT.texto}
                                     </span>
                                   </div>
@@ -1167,15 +1072,15 @@ export default function Home() {
                                   {esIRL && (
                                     (j.esSedeFija || j.esSedePersonalizada || esIrremontable) ? (
                                        <div className={`flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-950'}`}>
-                                          <span className="text-sm">{iconoSede}</span>
-                                          <span className="bg-white text-slate-900 border border-slate-200 text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
+                                          <span className="text-xs">{iconoSede}</span>
+                                          <span className="bg-white text-slate-900 border border-slate-200 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
                                               {(j.esSedeFija || j.esSedePersonalizada) ? j.sedeFinal : `${sedeConfirmada} VOTADA COMO SEDE`}
                                           </span>
                                       </div>
                                     ) : (
                                        <div className={`flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-950'}`}>
-                                          <span className="text-sm">{iconoSede}</span>
-                                          <span className="bg-yellow-400 text-yellow-950 text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
+                                          <span className="text-xs">{iconoSede}</span>
+                                          <span className="bg-yellow-400 text-yellow-950 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
                                               SEDE EN VOTACIÓN
                                           </span>
                                       </div>
@@ -1187,9 +1092,9 @@ export default function Home() {
                           
                           {/* --- SECCIÓN DE VOTACIÓN DE SEDE --- */}
                           {esIRL && (!j.esSedeFija && !j.esSedePersonalizada && !esIrremontable) && (
-                            <div className="space-y-3 mb-4 mt-1">
-                              <div className={`p-3 border ${RADIO_GENERAL} ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-100'}`}>
-                                <p className={`text-[9px] font-black uppercase tracking-widest mb-2 flex justify-between ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                            <div className="space-y-2 mb-4 mt-1">
+                              <div className={`p-2.5 border ${RADIO_GENERAL} ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200/80'}`}>
+                                <p className={`text-[8px] font-black uppercase tracking-widest mb-2 flex justify-between ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                                   <span>🗳️ Votación de sede</span>
                                   <span className="normal-case tracking-normal">Quedan {votosRestantes} votos</span>
                                 </p>
@@ -1203,10 +1108,10 @@ export default function Home() {
                                       <button 
                                         key={c.nombre} 
                                         onClick={() => votarSede(j.id, c.nombre)} 
-                                        className={`relative overflow-hidden w-full flex justify-between items-center px-3 py-2 ${RADIO_GENERAL} border transition-all group ${yoVoteAca ? (isDark ? 'border-violet-500 ring-1 ring-violet-900 bg-slate-900' : 'border-violet-500 ring-1 ring-violet-200 bg-white') : (isDark ? 'border-slate-700 hover:border-violet-600 bg-slate-900' : 'border-slate-200 hover:border-violet-400 bg-white')}`}
+                                        className={`relative overflow-hidden w-full flex justify-between items-center px-3 py-1.5 ${RADIO_GENERAL} border transition-all group ${yoVoteAca ? (isDark ? 'border-violet-500 ring-1 ring-violet-900 bg-slate-900' : 'border-violet-400 ring-1 ring-violet-200 bg-violet-50/50') : (isDark ? 'border-slate-700 hover:border-violet-600 bg-slate-900' : 'border-slate-200 hover:border-violet-300 bg-white')}`}
                                       >
                                         <motion.div
-                                          className={`absolute left-0 top-0 bottom-0 ${yoVoteAca ? (isDark ? 'bg-violet-900/30' : 'bg-violet-100') : (isDark ? 'bg-slate-800' : 'bg-slate-100')}`}
+                                          className={`absolute left-0 top-0 bottom-0 ${yoVoteAca ? (isDark ? 'bg-violet-900/30' : 'bg-violet-100') : (isDark ? 'bg-slate-800' : 'bg-slate-100/50')}`}
                                           initial={{ width: 0 }}
                                           animate={{ width: `${porcentaje}%` }}
                                           transition={{ duration: 0.3, ease: "easeOut" }}
@@ -1216,10 +1121,10 @@ export default function Home() {
                                           <div className="flex items-center gap-2">
                                             <div className="flex -space-x-1.5 mr-1">
                                                 {c.votantes?.slice(0,3).map((v: string) => (
-                                                    <img key={v} src={getFotoUsuario(v)} className={`w-4 h-4 rounded-full border object-cover ${isDark ? 'border-slate-800' : 'border-white'}`} alt="votante" />
+                                                    <img key={v} src={getFotoUsuario(v)} className={`w-3.5 h-3.5 rounded-full border object-cover ${isDark ? 'border-slate-800' : 'border-white'}`} alt="votante" />
                                                 ))}
                                             </div>
-                                            <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${vCount > 0 ? (isDark ? 'text-violet-300 bg-violet-900/40' : 'text-violet-600 bg-violet-50') : (isDark ? 'text-slate-500 bg-slate-800/50' : 'text-slate-400 bg-slate-50')}`}>
+                                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${vCount > 0 ? (isDark ? 'text-violet-300 bg-violet-900/40' : 'text-violet-600 bg-violet-50') : (isDark ? 'text-slate-500 bg-slate-800/50' : 'text-slate-400 bg-slate-50')}`}>
                                               {vCount}
                                             </span>
                                           </div>
@@ -1233,31 +1138,31 @@ export default function Home() {
                           )}
 
                           {j.notas && (
-                            <div className={`mb-4 p-3 border ${RADIO_GENERAL} ${isDark ? 'bg-violet-900/20 border-violet-800/50' : 'bg-violet-50/50 border-violet-100'}`}>
-                              <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${isDark ? 'text-violet-400' : 'text-violet-600'}`}>📌 NOTAS:</p>
+                            <div className={`mb-3 p-2.5 border ${RADIO_GENERAL} ${isDark ? 'bg-violet-900/20 border-violet-800/50' : 'bg-violet-50/50 border-violet-100'}`}>
+                              <p className={`text-[8px] font-black uppercase tracking-widest mb-0.5 ${isDark ? 'text-violet-400' : 'text-violet-600'}`}>📌 NOTAS:</p>
                               <p className={`text-[10px] font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{j.notas}</p>
                             </div>
                           )}
 
                           {j.tags?.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5 mb-5 mt-1">
+                              <div className="flex flex-wrap gap-1.5 mb-4">
                                 {j.tags.map((t: any) => {
                                   const icon = TODOS_LOS_TAGS.find(d => d.label === t)?.emoji;
-                                  return <span key={t} className={`text-[8px] font-black px-2 py-0.5 rounded-full border uppercase tracking-widest ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>{icon} {t}</span>
+                                  return <span key={t} className={`text-[8px] font-black px-2 py-0.5 rounded-full border uppercase tracking-widest ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-white text-slate-500 border-slate-200 shadow-sm'}`}>{icon} {t}</span>
                                 })}
                               </div>
                           )}
 
                           {/* SECCIÓN ASISTENCIA */}
-                          <div className={`p-3 ${RADIO_GENERAL} border mb-4 ${isDark ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50 border-slate-100'}`}>
-                            <div className={`flex justify-between items-end border-b pb-2 mb-2 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-                              <p className={`text-[9px] font-black uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Asistencia:</p>
+                          <div className={`p-2.5 ${RADIO_GENERAL} border mb-3 ${isDark ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50/50 border-slate-200/80'}`}>
+                            <div className={`flex justify-between items-end border-b pb-1.5 mb-1.5 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                              <p className={`text-[8px] font-black uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Asistencia:</p>
                               
                               <div className="flex gap-0.5">
                                 {Array.from({ length: AMIGOS_FALLBACK.length }).map((_, i) => (
                                   <span 
                                     key={i} 
-                                    className={`text-sm transition-all duration-300 ${i < cantConfirmados ? (isDark ? 'text-violet-500 opacity-100' : 'text-violet-600 opacity-100') : (isDark ? 'text-slate-600 opacity-30 grayscale' : 'text-slate-400 opacity-30 grayscale')}`}
+                                    className={`text-xs transition-all duration-300 ${i < cantConfirmados ? (isDark ? 'text-violet-500 opacity-100' : 'text-violet-500 opacity-100') : (isDark ? 'text-slate-600 opacity-30 grayscale' : 'text-slate-300 opacity-30 grayscale')}`}
                                   >
                                     👤
                                   </span>
@@ -1265,41 +1170,41 @@ export default function Home() {
                               </div>
                             </div>
                             
-                            {(!j.confirmados?.length && !j.dudosos?.length && !j.rechazados?.length) && <p className={`text-[10px] italic ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Nadie respondió todavía</p>}
-                            {j.confirmados?.length > 0 && <p className={`text-[10px] font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>✅ <span className={`font-bold ${isDark ? 'text-green-500' : 'text-green-600'}`}>VAN:</span> {j.confirmados.join(', ')}</p>}
-                            {j.dudosos?.length > 0 && <p className={`text-[10px] font-medium mb-1 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>🤔 <span className={`font-bold ${isDark ? 'text-yellow-500' : 'text-yellow-600'}`}>DUDAN:</span> {j.dudosos.join(', ')}</p>}
-                            {j.rechazados?.length > 0 && <p className={`text-[10px] font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>❌ <span className={`font-bold ${isDark ? 'text-red-500' : 'text-red-500'}`}>PASAN:</span> {j.rechazados.join(', ')}</p>}
+                            {(!j.confirmados?.length && !j.dudosos?.length && !j.rechazados?.length) && <p className={`text-[9px] italic ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Nadie respondió todavía</p>}
+                            {j.confirmados?.length > 0 && <p className={`text-[9px] font-medium mb-0.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>✅ <span className={`font-bold ${isDark ? 'text-green-500' : 'text-green-600'}`}>VAN:</span> {j.confirmados.join(', ')}</p>}
+                            {j.dudosos?.length > 0 && <p className={`text-[9px] font-medium mb-0.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>🤔 <span className={`font-bold ${isDark ? 'text-yellow-500' : 'text-yellow-600'}`}>DUDAN:</span> {j.dudosos.join(', ')}</p>}
+                            {j.rechazados?.length > 0 && <p className={`text-[9px] font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>❌ <span className={`font-bold ${isDark ? 'text-red-500' : 'text-red-500'}`}>PASAN:</span> {j.rechazados.join(', ')}</p>}
                           </div>
 
                           {/* --- BOTONES VOY / NO SÉ / NO PUEDO --- */}
-                          <div className="grid grid-cols-3 gap-2 mb-3 relative">
+                          <div className="grid grid-cols-3 gap-2 mb-2 relative">
                             <button 
                               onClick={() => toggleAsistencia(j.id, 'voy')}
-                              className={`h-10 text-[10px] font-black uppercase tracking-widest flex items-center justify-center transition-colors duration-200 ${RADIO_GENERAL} border ${voyYo ? (isDark ? 'bg-green-500 text-white border-green-500 shadow-none' : 'bg-green-500 text-white border-green-500 shadow-md shadow-green-200') : (isDark ? 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')}`}
+                              className={`h-9 text-[9px] font-black uppercase tracking-widest flex items-center justify-center transition-all duration-200 ${RADIO_GENERAL} border ${voyYo ? (isDark ? 'bg-green-500 text-white border-green-500 shadow-none' : 'bg-green-500 text-white border-green-500 shadow-md shadow-green-200') : (isDark ? 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 shadow-sm')}`}
                             >VOY</button>
                             <button 
                               onClick={() => toggleAsistencia(j.id, 'nose')}
-                              className={`h-10 text-[10px] font-black uppercase tracking-widest flex items-center justify-center transition-colors duration-200 ${RADIO_GENERAL} border ${dudaYo ? (isDark ? 'bg-yellow-500 text-white border-yellow-500 shadow-none' : 'bg-yellow-500 text-white border-yellow-500 shadow-md shadow-yellow-200') : (isDark ? 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')}`}
+                              className={`h-9 text-[9px] font-black uppercase tracking-widest flex items-center justify-center transition-all duration-200 ${RADIO_GENERAL} border ${dudaYo ? (isDark ? 'bg-yellow-500 text-white border-yellow-500 shadow-none' : 'bg-yellow-500 text-white border-yellow-500 shadow-md shadow-yellow-200') : (isDark ? 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 shadow-sm')}`}
                             >NO SÉ</button>
                             <button 
                               onClick={() => toggleAsistencia(j.id, 'paso')}
-                              className={`h-10 text-[10px] font-black uppercase tracking-widest flex items-center justify-center transition-colors duration-200 ${RADIO_GENERAL} border ${pasoYo ? (isDark ? 'bg-red-500 text-white border-red-500 shadow-none' : 'bg-red-500 text-white border-red-500 shadow-md shadow-red-200') : (isDark ? 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50')}`}
+                              className={`h-9 text-[9px] font-black uppercase tracking-widest flex items-center justify-center transition-all duration-200 ${RADIO_GENERAL} border ${pasoYo ? (isDark ? 'bg-red-500 text-white border-red-500 shadow-none' : 'bg-red-500 text-white border-red-500 shadow-md shadow-red-200') : (isDark ? 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 shadow-sm')}`}
                             >PASO</button>
                           </div>
 
                           {/* --- BOTÓN WHATSAPP --- */}
                           <button 
                             onClick={() => compartirWhatsApp(j)}
-                            className={`w-full flex items-center justify-center gap-1.5 py-2 mb-2 text-[10px] font-black uppercase tracking-widest transition-colors ${isDark ? 'text-green-500 hover:text-green-400' : 'text-green-600 hover:text-green-700'}`}
+                            className={`w-full flex items-center justify-center gap-1.5 py-2 mb-1 text-[9px] font-black uppercase tracking-widest transition-colors ${isDark ? 'text-green-500 hover:text-green-400' : 'text-green-600 hover:text-green-700'}`}
                           >
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.305-.88-.653-1.473-1.46-1.646-1.757-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51h-.57c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                            AVISAR POR WHATSAPP
+                            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.305-.88-.653-1.473-1.46-1.646-1.757-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51h-.57c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                            AVISAR POR WA
                           </button>
 
                           {/* --- ZONA DE COMENTARIOS INLINE (AL FINAL) --- */}
                           <div className={`mt-auto pt-3 border-t flex-1 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
                             {/* Lista de Comentarios */}
-                            <div className="space-y-1.5 mb-2 max-h-32 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
+                            <div className="space-y-1 mb-2 max-h-32 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
                               {(j.excusas || []).map((c: any, idx: number) => {
                                 let ringColor = 'border-transparent';
                                 if ((j.confirmados || []).includes(c.usuario)) ringColor = `ring-2 ring-green-500 ring-offset-1 ${isDark ? 'ring-offset-slate-900' : 'ring-offset-white'}`;
@@ -1308,13 +1213,13 @@ export default function Home() {
 
                                 return (
                                   <div key={idx} className={`flex items-center gap-2 group relative py-1 rounded-lg px-1 transition-colors ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50'}`}>
-                                    <img src={getFotoUsuario(c.usuario)} className={`w-6 h-6 rounded-full object-cover shadow-sm shrink-0 ${ringColor}`} alt="avatar" />
-                                    <div className={`flex-1 text-[10px] font-medium leading-tight line-clamp-3 break-words ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                                    <img src={getFotoUsuario(c.usuario)} className={`w-5 h-5 rounded-full object-cover shadow-sm shrink-0 ${ringColor}`} alt="avatar" />
+                                    <div className={`flex-1 text-[9px] font-medium leading-tight line-clamp-3 break-words ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
                                       <span className={`font-black uppercase mr-1 ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>{c.usuario}:</span>
                                       {c.texto}
                                     </div>
                                     {c.usuario === usuarioLogueado && (
-                                      <button onClick={() => borrarComentario(j.id, c.texto)} className={`font-bold text-[10px] transition-colors ml-2 px-1 ${isDark ? 'text-slate-500 hover:text-red-400' : 'text-slate-400 hover:text-red-500'}`} title="Borrar comentario">✕</button>
+                                      <button onClick={() => borrarComentario(j.id, c.texto)} className={`font-bold text-[9px] transition-colors ml-2 px-1 ${isDark ? 'text-slate-500 hover:text-red-400' : 'text-slate-400 hover:text-red-500'}`} title="Borrar comentario">✕</button>
                                     )}
                                   </div>
                                 );
@@ -1330,7 +1235,7 @@ export default function Home() {
                                 value={comentariosInputs[j.id] || ''}
                                 onChange={(e) => setComentariosInputs(prev => ({ ...prev, [j.id]: e.target.value }))}
                                 onKeyDown={(e) => { if (e.key === 'Enter') agregarComentario(j.id); }}
-                                className={`w-full h-8 pl-3 pr-8 rounded-lg text-[9px] font-bold outline-none focus:ring-1 transition-all border ${isDark ? 'bg-slate-900 border-slate-700 text-white focus:ring-violet-500 placeholder:text-slate-500' : 'bg-white border-slate-200 text-slate-800 focus:ring-violet-300 placeholder:text-slate-400'}`}
+                                className={`w-full h-8 pl-3 pr-8 rounded-lg text-[9px] font-bold outline-none focus:ring-1 transition-all border ${isDark ? 'bg-slate-900 border-slate-700 text-white focus:ring-violet-500 placeholder:text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-800 focus:ring-violet-300 placeholder:text-slate-400'}`}
                               />
                               <button 
                                 onClick={() => agregarComentario(j.id)}
@@ -1345,8 +1250,89 @@ export default function Home() {
                       );
                     })}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
+
+              {/* --- ZONA DERECHA / ARRIBA: WIDGET DISCORD INTEGRADO --- */}
+              {/* lg:mt-[38px] asegura que quede simétrico con la primera tarjeta de propuestas */}
+              <div className="w-full lg:w-[300px] xl:w-[320px] shrink-0 order-1 lg:order-2 lg:sticky lg:top-6 mt-0 lg:mt-[38px]">
+                <motion.div 
+                  initial={{ opacity: 0, y: 15 }} 
+                  animate={{ opacity: 1, y: 0 }} 
+                  transition={{ duration: 0.3 }} 
+                  className={`p-5 ${RADIO_GENERAL} border transition-colors duration-300 ${isDark ? 'bg-slate-900 border-slate-800 shadow-none' : 'bg-white border-slate-200/80 shadow-xl shadow-slate-200/60'}`}
+                >
+                  {/* HEADER WIDGET */}
+                  <div className={`flex justify-between items-center mb-4 pb-3 border-b ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+                    <div className="flex items-center gap-3">
+                      <img src="https://i.imgur.com/NZUspLh.png" className={`w-9 h-9 rounded-xl object-cover border ${isDark ? 'border-slate-700' : 'border-slate-200 shadow-sm'}`} alt="Server Logo" />
+                      <div className="flex flex-col">
+                        <h3 className={`text-[11px] font-black uppercase tracking-widest leading-tight ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                          {discordData?.name || 'TEAM SOLOMILLO'}
+                        </h3>
+                        {discordData && !discordData.errorMensaje && (
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_6px_rgba(16,185,129,0.5)]"></span>
+                            <span className={`text-[8px] font-bold uppercase tracking-widest ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>En línea</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* CONTENIDO WIDGET */}
+                  <div>
+                    {discordLoading && !discordData ? (
+                      <div className="animate-pulse flex gap-2">
+                        <div className={`w-7 h-7 rounded-full ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}></div>
+                        <div className={`w-7 h-7 rounded-full ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}></div>
+                      </div>
+                    ) : canalesConGente.length > 0 ? (
+                      <div className="space-y-4">
+                        {canalesConGente.map((c: any) => (
+                          <div key={c.id}>
+                            <p className={`text-[9px] font-black uppercase tracking-widest mb-2 flex items-center gap-1.5 ${isDark ? 'text-violet-400' : 'text-violet-600'}`}>
+                              <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                              {c.name}
+                            </p>
+                            
+                            {/* Flex wrap con w-fit para pastillas ajustadas SIN ESPACIO FANTASMA */}
+                            <div className="flex flex-wrap gap-2">
+                              {c.members.map((m: any) => (
+                                <div key={m.id} className={`w-fit inline-flex items-center gap-2 p-1 pr-3 rounded-full border transition-all cursor-default ${isDark ? 'bg-slate-800/50 border-slate-700 hover:border-violet-500/50 hover:bg-slate-800' : 'bg-slate-50 border-slate-200 hover:border-violet-300 hover:bg-white shadow-sm'}`}>
+                                  <div className="relative shrink-0">
+                                    <img src={m.avatar_url} className="w-5 h-5 rounded-full object-cover" alt={m.username} />
+                                    <span className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border-2 ${isDark ? 'border-slate-800' : 'border-slate-50'} ${m.status === 'online' ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+                                  </div>
+                                  <div className="flex flex-col justify-center">
+                                    <div className="flex items-center gap-1">
+                                      <span className={`text-[9px] font-black leading-none ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{m.username}</span>
+                                      <div className="flex items-center gap-0.5">
+                                        {(m.deaf || m.self_deaf) && (
+                                          <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-red-400"><line x1="2" y1="2" x2="22" y2="22" /><path d="M18.5 15.5A4.5 4.5 0 0 1 21 12V9a9 9 0 0 0-14.7-6.8" /><path d="M3 14v-2A9 9 0 0 1 7.2 4.8" /><path d="M21 12v4a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h3" /><path d="M3 12v4a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-4a2 2 0 0 0-2-2H3" /></svg>
+                                        )}
+                                        {((m.mute || m.self_mute) && !(m.deaf || m.self_deaf)) && (
+                                          <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400"><line x1="2" y1="2" x2="22" y2="22" /><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" /><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {m.game && <span className={`text-[6px] font-bold uppercase leading-none mt-0.5 truncate max-w-[70px] ${isDark ? 'text-violet-400' : 'text-violet-600'}`}>{m.game.name}</span>}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="py-3 text-center">
+                        <p className={`text-[9px] font-black uppercase tracking-widest opacity-40 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Silencio total en voz 😴</p>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              </div>
+              
             </div>
           </main>
         )}
