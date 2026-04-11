@@ -48,6 +48,9 @@ export default function Home() {
   const [passwordInput, setPasswordInput] = useState('');
   const [errorLogin, setErrorLogin] = useState('');
   
+  // TABS PRINCIPALES
+  const [vistaPrincipal, setVistaPrincipal] = useState<'PROPUESTAS' | 'POSTEOS'>('PROPUESTAS');
+
   const [juntadas, setJuntadas] = useState<any[]>([]);
   const [usuariosDB, setUsuariosDB] = useState<any[]>([]);
   const [mostrandoFormulario, setMostrandoFormulario] = useState(false);
@@ -67,16 +70,15 @@ export default function Home() {
   const [fotoFile, setFotoFile] = useState<File | null>(null);
   const [fotoPreview, setFotoPreview] = useState<string | null>(null);
 
-  // Estados de Comentarios
+  // Estados de Comentarios Juntadas
   const [comentariosInputs, setComentariosInputs] = useState<Record<number, string>>({});
 
-  // Estados Formulario
+  // Estados Formulario Juntadas
   const [tipoJuntada, setTipoJuntada] = useState<'IRL' | 'DISCORD'>('IRL');
   const [nuevoTitulo, setNuevoTitulo] = useState('');
   const [fechaSel, setFechaSel] = useState(''); 
   const [horaSel, setHoraSel] = useState(''); 
   
-  // Control de la sede
   const [opcionSede, setOpcionSede] = useState<'FIJA' | 'VOTACION' | 'CUSTOM'>('FIJA');
   const [sedeFija, setSedeFija] = useState('Casa de Tomas');
   const [sedePersonalizadaInput, setSedePersonalizadaInput] = useState('');
@@ -87,6 +89,18 @@ export default function Home() {
   
   const [imagenJuntada, setImagenJuntada] = useState<File | null>(null);
   const [imagenJuntadaPreview, setImagenJuntadaPreview] = useState<string | null>(null);
+
+  // ==========================================
+  // ESTADOS POSTEOS (SHITPOST)
+  // ==========================================
+  const [posteos, setPosteos] = useState<any[]>([]);
+  const [mostrandoFormPosteo, setMostrandoFormPosteo] = useState(false);
+  const [textoPost, setTextoPost] = useState('');
+  const [imagenPost, setImagenPost] = useState<File | null>(null);
+  const [imagenPostPreview, setImagenPostPreview] = useState<string | null>(null);
+  const [esAnonimo, setEsAnonimo] = useState(false);
+  const [comentariosPostInputs, setComentariosPostInputs] = useState<Record<number, string>>({});
+  const [comentarioAnonimoPost, setComentarioAnonimoPost] = useState<Record<number, boolean>>({});
 
   // Widget Discord
   const [discordData, setDiscordData] = useState<any>(null);
@@ -106,13 +120,26 @@ export default function Home() {
   // 2. CARGA DE DATOS AISLADA
   useEffect(() => {
     async function cargarDatos() {
-      const [resJuntadas, resUsuarios] = await Promise.all([
+      const [resJuntadas, resUsuarios, resPosteos] = await Promise.all([
         supabase.from('juntadas').select('*').order('id', { ascending: false }),
-        supabase.from('usuarios').select('*')
+        supabase.from('usuarios').select('*'),
+        supabase.from('posteos').select('*').order('id', { ascending: false })
       ]);
       
       if (resJuntadas.data) setJuntadas(resJuntadas.data);
       if (resUsuarios.data) setUsuariosDB(resUsuarios.data);
+      
+      // Control de errores al cargar posteos
+      if (resPosteos.error) {
+        console.error("Error al cargar posteos:", resPosteos.error.message);
+      } else if (resPosteos.data) {
+        const posteosNormalizados = resPosteos.data.map(p => ({
+          ...p,
+          imagenUrl: p.imagenurl || p.imagenUrl 
+        }));
+        setPosteos(posteosNormalizados);
+      }
+
       setLoading(false);
     }
     
@@ -120,6 +147,7 @@ export default function Home() {
 
     const subJuntadas = supabase.channel('juntadas_channel').on('postgres_changes', { event: '*', schema: 'public', table: 'juntadas' }, () => cargarDatos()).subscribe();
     const subUsuarios = supabase.channel('usuarios_channel').on('postgres_changes', { event: '*', schema: 'public', table: 'usuarios' }, () => cargarDatos()).subscribe();
+    const subPosteos = supabase.channel('posteos_channel').on('postgres_changes', { event: '*', schema: 'public', table: 'posteos' }, () => cargarDatos()).subscribe();
 
     const fetchDiscord = async () => {
       const timestamp = new Date().getTime();
@@ -141,13 +169,12 @@ export default function Home() {
     };
     
     fetchDiscord();
-    // SOLUCIÓN F5: La página consulta a tu servidor cada 15 segundos (15000ms).
-    // Tu servidor maneja la caché interna para no banearte. UX perfecta.
     const discordInterval = setInterval(fetchDiscord, 15000);
 
     return () => {
       supabase.removeChannel(subJuntadas);
       supabase.removeChannel(subUsuarios);
+      supabase.removeChannel(subPosteos);
       clearInterval(discordInterval);
     };
   }, []); 
@@ -174,6 +201,7 @@ export default function Home() {
   };
 
   const getFotoUsuario = (nombre: string) => {
+    if (nombre === 'ANÓNIMO') return 'https://api.dicebear.com/7.x/bottts/svg?seed=anonimo&backgroundColor=1e293b';
     const user = usuariosDB.find(u => u.nombre === nombre);
     return user?.foto_perfil || `https://api.dicebear.com/7.x/avataaars/svg?seed=${nombre}`;
   };
@@ -306,6 +334,9 @@ export default function Home() {
     setIsUploading(false);
   };
 
+  // ==========================================
+  // LOGICA JUNTADAS
+  // ==========================================
   const abrirEdicion = (j: any) => {
     setJuntadaEnEdicion(j.id);
     setTipoJuntada(j.tipo || 'IRL');
@@ -339,7 +370,7 @@ export default function Home() {
     setMostrandoFormulario(true);
   };
 
-  const publicar = async () => {
+  const publicarJuntada = async () => {
     if (!nuevoTitulo.trim() || !fechaSel || !horaSel.trim()) return alert("Completá título, fecha y hora.");
     if (tipoJuntada === 'IRL' && opcionSede === 'CUSTOM' && !sedePersonalizadaInput.trim()) return alert("Ingresá la sede personalizada.");
     if (!juntadaEnEdicion && !imagenJuntada) return alert("¡Tenés que agregar una foto de portada sí o sí!");
@@ -531,9 +562,116 @@ export default function Home() {
     setImagenJuntadaPreview(null);
   };
 
+  // ==========================================
+  // LOGICA POSTEOS (SHITPOST)
+  // ==========================================
+  const publicarPosteo = async () => {
+    if (!imagenPost) return alert("Tenés que agregar una foto sí o sí para el shitpost.");
+    
+    setIsUploading(true);
+
+    const finalImageUrl = await subirImagenAlStorage(imagenPost, 'posteos');
+    if (!finalImageUrl) {
+      alert("Hubo un error subiendo la foto.");
+      setIsUploading(false);
+      return;
+    }
+
+    const nuevoPost = {
+      creador: usuarioLogueado,
+      texto: textoPost.trim(),
+      imagenurl: finalImageUrl,
+      anonimo: esAnonimo,
+      timestamp: new Date().getTime(),
+      likes: [],
+      comentarios: []
+    };
+
+    // AL AGREGAR .select() PODEMOS INYECTARLO AL TOQUE EN LA UI
+    const { data, error } = await supabase.from('posteos').insert([nuevoPost]).select();
+    
+    if (error) {
+      alert(`❌ Error al publicar: ${error.message}\n(Revisá en Supabase si "Row Level Security" está desactivado para la tabla 'posteos')`);
+      setIsUploading(false);
+      return;
+    }
+    
+    // OPTIMISTIC UI: Se agrega inmediatamente a la lista para no depender del F5 ni de la latencia de Supabase Realtime
+    if (data && data.length > 0) {
+      const posteoNuevoFormateado = {
+        ...data[0],
+        imagenUrl: data[0].imagenurl || data[0].imagenUrl
+      };
+      setPosteos(prev => [posteoNuevoFormateado, ...prev]);
+    }
+
+    setMostrandoFormPosteo(false);
+    setTextoPost('');
+    setImagenPost(null);
+    setImagenPostPreview(null);
+    setEsAnonimo(false);
+    setIsUploading(false);
+  };
+
+  const toggleLikePosteo = (postId: number) => {
+    const pIndex = posteos.findIndex(x => x.id === postId);
+    if (pIndex === -1) return;
+    const p = posteos[pIndex];
+
+    let likesActuales = p.likes || [];
+    if (likesActuales.includes(usuarioLogueado)) {
+      likesActuales = likesActuales.filter((u: string) => u !== usuarioLogueado);
+    } else {
+      likesActuales = [...likesActuales, usuarioLogueado];
+    }
+
+    setPosteos(prev => prev.map(item => item.id === postId ? { ...item, likes: likesActuales } : item));
+    supabase.from('posteos').update({ likes: likesActuales }).eq('id', postId).then();
+  };
+
+  const agregarComentarioPosteo = (postId: number) => {
+    const texto = comentariosPostInputs[postId]?.trim();
+    if (!texto) return;
+
+    const p = posteos.find(item => item.id === postId);
+    if (!p) return;
+
+    const esAnon = comentarioAnonimoPost[postId] || false;
+    const autorVisible = esAnon ? 'ANÓNIMO' : usuarioLogueado;
+
+    const comentariosActuales = p.comentarios || [];
+    // Guardamos creador_real para que el dueño sepa que es suyo y pueda borrarlo
+    const nuevoComentario = { usuario: autorVisible, texto, creador_real: usuarioLogueado };
+    const nuevosComentariosArray = [...comentariosActuales, nuevoComentario];
+
+    setPosteos(prev => prev.map(item => item.id === postId ? { ...item, comentarios: nuevosComentariosArray } : item));
+    setComentariosPostInputs(prev => ({ ...prev, [postId]: '' }));
+    setComentarioAnonimoPost(prev => ({ ...prev, [postId]: false }));
+
+    supabase.from('posteos').update({ comentarios: nuevosComentariosArray }).eq('id', postId).then();
+  };
+
+  const borrarComentarioPosteo = (postId: number, indexABorrar: number) => {
+    const p = posteos.find(item => item.id === postId);
+    if (!p) return;
+    
+    // Filtramos por índice para no borrar comentarios idénticos por error
+    const comentariosRestantes = (p.comentarios || []).filter((_: any, i: number) => i !== indexABorrar);
+    
+    setPosteos(prev => prev.map(item => item.id === postId ? { ...item, comentarios: comentariosRestantes } : item));
+    supabase.from('posteos').update({ comentarios: comentariosRestantes }).eq('id', postId).then();
+  };
+
+  const eliminarPosteo = async (postId: number) => {
+    if (!window.confirm("¿Seguro que querés eliminar este shitpost?")) return;
+    setPosteos(prev => prev.filter(x => x.id !== postId)); // Borrado optimista
+    await supabase.from('posteos').delete().eq('id', postId);
+  };
+
+
+  // Helpers Globales
   const formatearFechaDisplay = (fechaStr: string) => {
     if (!fechaStr) return '';
-    // Usamos split para evitar bugs con regex en distintos navegadores
     const [y, m, d] = fechaStr.split('-');
     const dateObj = new Date(Number(y), Number(m) - 1, Number(d));
     const dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -624,9 +762,9 @@ export default function Home() {
           </main>
         )}
 
-        {/* --- VISTA FORMULARIO --- */}
+        {/* --- VISTA FORMULARIO JUNTADA --- */}
         {usuarioLogueado && mostrandoFormulario && (
-          <main className="p-4 pb-10 min-h-screen">
+          <main className="p-4 pb-10 min-h-screen flex flex-col items-center justify-center">
             <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={ESTETICA_FORMULARIO(isDark).contenedor}>
               <button onClick={() => { setMostrandoFormulario(false); resetForm(); }} className={`text-[10px] mb-4 uppercase tracking-widest transition-colors font-bold ${isDark ? 'text-slate-500 hover:text-violet-400' : 'text-slate-400 hover:text-violet-600'}`}>← Cancelar</button>
               <h2 className={`text-xl font-black mb-5 tracking-tighter uppercase ${isDark ? 'text-white' : 'text-slate-900'}`}>{juntadaEnEdicion ? 'EDITAR PROPUESTA' : 'NUEVA PROPUESTA'}</h2>
@@ -777,7 +915,7 @@ export default function Home() {
                 <motion.button 
                   whileHover={{ scale: 1.02 }} 
                   whileTap={{ scale: 0.98 }} 
-                  onClick={publicar} 
+                  onClick={publicarJuntada} 
                   disabled={isUploading}
                   className={`${ESTETICA_FORMULARIO(isDark).botonPrincipal} ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
@@ -788,12 +926,91 @@ export default function Home() {
           </main>
         )}
 
-        {/* --- DASHBOARD --- */}
-        {usuarioLogueado && !mostrandoFormulario && (
+        {/* --- VISTA FORMULARIO SHITPOST --- */}
+        {usuarioLogueado && mostrandoFormPosteo && !mostrandoFormulario && (
+          <main className="p-4 pb-10 min-h-screen flex flex-col items-center justify-center">
+            <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={ESTETICA_FORMULARIO(isDark).contenedor}>
+              <button onClick={() => { setMostrandoFormPosteo(false); setImagenPost(null); setImagenPostPreview(null); setTextoPost(''); }} className={`text-[10px] mb-4 uppercase tracking-widest transition-colors font-bold ${isDark ? 'text-slate-500 hover:text-violet-400' : 'text-slate-400 hover:text-violet-600'}`}>← Cancelar</button>
+              <h2 className={`text-xl font-black mb-5 tracking-tighter uppercase ${isDark ? 'text-white' : 'text-slate-900'}`}>NUEVO SHITPOST 📸</h2>
+              
+              <div className="space-y-4">
+                
+                {/* PREVIEW IMAGEN CUADRADA */}
+                <div className={`relative w-full aspect-square rounded-xl flex items-center justify-center transition-colors cursor-pointer overflow-hidden border-2 ${imagenPostPreview ? 'border-transparent shadow-sm' : (isDark ? 'border-dashed border-slate-700 bg-slate-800/50 hover:bg-slate-800' : 'border-dashed border-violet-200 bg-violet-50 hover:bg-violet-100')}`}>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setImagenPost(file);
+                          setImagenPostPreview(URL.createObjectURL(file));
+                        }
+                      }}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    />
+                    
+                    {imagenPostPreview ? (
+                      <>
+                        <img src={imagenPostPreview} className="w-full h-full object-cover" alt="Preview Posteo" />
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                          <span className="text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                            🔄 CAMBIAR FOTO
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <span className={`text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${isDark ? 'text-slate-400' : 'text-violet-600'}`}>
+                        📸 AGREGAR FOTO (OBLIGATORIA)
+                      </span>
+                    )}
+                </div>
+
+                <div>
+                  <label className={`text-[10px] font-bold ml-1 mb-1 block ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Texto para la imagen (Opcional)</label>
+                  <textarea 
+                    placeholder="Escribí algo piola..." 
+                    rows={3}
+                    className={`${ESTETICA_FORMULARIO(isDark).input} ${RADIO_GENERAL} h-auto py-2 resize-none`} 
+                    value={textoPost} 
+                    onChange={e => setTextoPost(e.target.value)} 
+                  />
+                </div>
+
+                <div className={`flex items-center gap-3 p-3 rounded-xl border ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                  <input 
+                    type="checkbox" 
+                    id="anonimo-check"
+                    checked={esAnonimo}
+                    onChange={(e) => setEsAnonimo(e.target.checked)}
+                    className="w-4 h-4 text-violet-600 bg-slate-100 border-slate-300 rounded focus:ring-violet-500 focus:ring-2 cursor-pointer"
+                  />
+                  <label htmlFor="anonimo-check" className={`text-[10px] font-black uppercase tracking-widest cursor-pointer ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                    🕵️ Publicar como Anónimo
+                  </label>
+                </div>
+
+                <motion.button 
+                  whileHover={{ scale: 1.02 }} 
+                  whileTap={{ scale: 0.98 }} 
+                  onClick={publicarPosteo} 
+                  disabled={isUploading}
+                  className={`${ESTETICA_FORMULARIO(isDark).botonPrincipal} ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {isUploading ? '⏳ SUBIENDO...' : '🚀 PUBLICAR'}
+                </motion.button>
+
+              </div>
+            </motion.div>
+          </main>
+        )}
+
+        {/* --- DASHBOARD PRINCIPAL --- */}
+        {usuarioLogueado && !mostrandoFormulario && !mostrandoFormPosteo && (
           <main className="pb-16 min-h-screen">
             
             {/* NAV BAR SUPERIOR */}
-            <nav className="p-4 lg:p-6 flex justify-between items-center max-w-6xl mx-auto relative z-50">
+            <nav className="p-4 lg:p-6 flex justify-between items-center max-w-7xl mx-auto relative z-50">
               <img src="https://i.imgur.com/5hJH1kn.png" alt="Logo" className={`h-8 lg:h-10 w-auto object-contain transition-all ${isDark ? 'invert opacity-90' : ''}`} />
               
               <div className="flex items-center gap-3">
@@ -889,373 +1106,549 @@ export default function Home() {
             </nav>
 
             {/* --- CONTENEDOR PRINCIPAL RESPONSIVE --- */}
-            <div className="max-w-6xl mx-auto p-4 flex flex-col lg:flex-row gap-6 lg:gap-12 items-start">
+            <div className="max-w-7xl mx-auto p-4 flex flex-col lg:flex-row gap-6 lg:gap-10 items-start">
               
-              {/* --- ZONA IZQUIERDA: PROPUESTAS --- */}
-              <div className="w-full lg:flex-1 order-2 lg:order-1 space-y-6">
+              {/* --- ZONA IZQUIERDA: CONTENIDO DINÁMICO (TABS) --- */}
+              <div className="w-full lg:flex-1 order-2 lg:order-1 flex flex-col gap-6">
                 
-                {/* Agregado -mt-2 para subir el header y alinearlo con Discord */}
-                <div className="flex justify-between items-end mb-4 px-1 -mt-2">
-                  <h2 className={`text-2xl font-black tracking-tighter uppercase ${isDark ? 'text-white' : 'text-slate-900'}`}>PROPUESTAS</h2>
-                  <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { resetForm(); setMostrandoFormulario(true); }} className={`bg-violet-600 text-white font-black shadow-md shadow-violet-200 hover:bg-violet-700 transition-all uppercase tracking-widest flex items-center justify-center text-[10px] px-4 h-8 ${RADIO_GENERAL} ${isDark ? 'shadow-none' : ''}`}>+ CREAR</motion.button>
+                {/* SELECTOR DE VISTA (TABS) */}
+                <div className={`flex gap-2 p-1.5 rounded-2xl mx-auto w-full max-w-sm border ${isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-white border-slate-200/80 shadow-sm'}`}>
+                  <button 
+                    onClick={() => setVistaPrincipal('PROPUESTAS')} 
+                    className={`flex-1 h-10 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest ${vistaPrincipal === 'PROPUESTAS' ? (isDark ? 'bg-slate-800 text-violet-400 border-slate-700 border shadow-sm' : 'bg-violet-50 text-violet-600 shadow-sm border border-violet-100') : (isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-600')}`}
+                  >
+                    🗓️ Propuestas
+                  </button>
+                  <button 
+                    onClick={() => setVistaPrincipal('POSTEOS')} 
+                    className={`flex-1 h-10 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest ${vistaPrincipal === 'POSTEOS' ? (isDark ? 'bg-slate-800 text-pink-400 border-slate-700 border shadow-sm' : 'bg-pink-50 text-pink-600 shadow-sm border border-pink-100') : (isDark ? 'text-slate-500 hover:text-slate-300' : 'text-slate-400 hover:text-slate-600')}`}
+                  >
+                    📸 Posteos
+                  </button>
                 </div>
-                
-                {juntadasOrdenadas.length === 0 ? (
-                  <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={`border-2 border-dashed ${RADIO_GENERAL} py-12 flex flex-col items-center justify-center text-center mt-2 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300/60'}`}>
-                    <div className="text-3xl mb-3 opacity-30">🗓️</div>
-                    <p className={`text-[10px] font-bold mb-5 uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Nada por acá...</p>
-                    <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { resetForm(); setMostrandoFormulario(true); }} className={`bg-violet-600 text-white font-black shadow-md shadow-violet-200 hover:bg-violet-700 transition-all uppercase tracking-widest flex items-center justify-center text-xs px-6 h-10 ${RADIO_GENERAL} ${isDark ? 'shadow-none' : ''}`}>+ CREAR</motion.button>
-                  </motion.div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-5 items-start">
-                    {juntadasOrdenadas.map((j) => {
-                      
-                      const voyYo = (j.confirmados || []).includes(usuarioLogueado);
-                      const dudaYo = (j.dudosos || []).includes(usuarioLogueado);
-                      const pasoYo = (j.rechazados || []).includes(usuarioLogueado);
-                      
-                      const cantConfirmados = j.confirmados?.length || 0;
 
-                      const esCreador = usuarioLogueado === j.creador;
-                      const esAdminTomas = usuarioLogueado === 'Tomas';
-                      const puedeEliminarOEditar = esCreador || esAdminTomas;
-                      const estaPineado = j.pineado;
+                {/* ------ CONTENIDO: PROPUESTAS ------ */}
+                {vistaPrincipal === 'PROPUESTAS' && (
+                  <div className="flex-1 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="flex justify-between items-end mb-4 px-1">
+                      <h2 className={`text-2xl font-black tracking-tighter uppercase ${isDark ? 'text-white' : 'text-slate-900'}`}>PROPUESTAS</h2>
+                      <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { resetForm(); setMostrandoFormulario(true); }} className={`bg-violet-600 text-white font-black shadow-md shadow-violet-200 hover:bg-violet-700 transition-all uppercase tracking-widest flex items-center justify-center text-[10px] px-4 h-8 ${RADIO_GENERAL} ${isDark ? 'shadow-none' : ''}`}>+ CREAR</motion.button>
+                    </div>
+                    
+                    {juntadasOrdenadas.length === 0 ? (
+                      <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={`border-2 border-dashed ${RADIO_GENERAL} py-12 flex flex-col items-center justify-center text-center mt-2 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300/60'}`}>
+                        <div className="text-3xl mb-3 opacity-30">🗓️</div>
+                        <p className={`text-[10px] font-bold mb-5 uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Nada por acá...</p>
+                        <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { resetForm(); setMostrandoFormulario(true); }} className={`bg-violet-600 text-white font-black shadow-md shadow-violet-200 hover:bg-violet-700 transition-all uppercase tracking-widest flex items-center justify-center text-xs px-6 h-10 ${RADIO_GENERAL} ${isDark ? 'shadow-none' : ''}`}>+ CREAR</motion.button>
+                      </motion.div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+                        {juntadasOrdenadas.map((j) => {
+                          
+                          const voyYo = (j.confirmados || []).includes(usuarioLogueado);
+                          const dudaYo = (j.dudosos || []).includes(usuarioLogueado);
+                          const pasoYo = (j.rechazados || []).includes(usuarioLogueado);
+                          
+                          const cantConfirmados = j.confirmados?.length || 0;
 
-                      const esDiscord = j.tipo === 'DISCORD';
-                      const esIRL = j.tipo === 'IRL' || !j.tipo;
-                      const iconoSede = j.esSedePersonalizada ? '📍' : '🏠';
+                          const esCreador = usuarioLogueado === j.creador;
+                          const esAdminTomas = usuarioLogueado === 'Tomas';
+                          const puedeEliminarOEditar = esCreador || esAdminTomas;
+                          const estaPineado = j.pineado;
 
-                      const totalVotosSede = j.candidatos ? j.candidatos.reduce((acc: number, c: any) => acc + (c.votantes?.length || 0), 0) : 0;
-                      const totalPosiblesVotantes = AMIGOS_FALLBACK.length - (j.rechazados?.length || 0);
-                      const votosRestantes = Math.max(0, totalPosiblesVotantes - totalVotosSede);
+                          const esDiscord = j.tipo === 'DISCORD';
+                          const esIRL = j.tipo === 'IRL' || !j.tipo;
+                          const iconoSede = j.esSedePersonalizada ? '📍' : '🏠';
 
-                      let sedeConfirmada = (j.esSedeFija || j.esSedePersonalizada) ? j.sedeFinal : null;
-                      let esIrremontable = false;
+                          const totalVotosSede = j.candidatos ? j.candidatos.reduce((acc: number, c: any) => acc + (c.votantes?.length || 0), 0) : 0;
+                          const totalPosiblesVotantes = AMIGOS_FALLBACK.length - (j.rechazados?.length || 0);
+                          const votosRestantes = Math.max(0, totalPosiblesVotantes - totalVotosSede);
 
-                      if (!j.esSedeFija && !j.esSedePersonalizada && j.candidatos && j.candidatos.length > 0) {
-                        const ordenados = [...j.candidatos].sort((a, b) => (b.votantes?.length || 0) - (a.votantes?.length || 0));
-                        const maxVotos = ordenados[0]?.votantes?.length || 0;
-                        const segundoMaxVotos = ordenados.length > 1 ? (ordenados[1]?.votantes?.length || 0) : 0;
+                          let sedeConfirmada = (j.esSedeFija || j.esSedePersonalizada) ? j.sedeFinal : null;
+                          let esIrremontable = false;
 
-                        if (maxVotos > 0 && maxVotos > (segundoMaxVotos + votosRestantes)) {
-                          sedeConfirmada = ordenados[0].nombre;
-                          esIrremontable = true;
-                        }
-                      }
+                          if (!j.esSedeFija && !j.esSedePersonalizada && j.candidatos && j.candidatos.length > 0) {
+                            const ordenados = [...j.candidatos].sort((a, b) => (b.votantes?.length || 0) - (a.votantes?.length || 0));
+                            const maxVotos = ordenados[0]?.votantes?.length || 0;
+                            const segundoMaxVotos = ordenados.length > 1 ? (ordenados[1]?.votantes?.length || 0) : 0;
 
-                      const estadoT = calcularEstadoTiempo(j.timestamp);
+                            if (maxVotos > 0 && maxVotos > (segundoMaxVotos + votosRestantes)) {
+                              sedeConfirmada = ordenados[0].nombre;
+                              esIrremontable = true;
+                            }
+                          }
 
-                      return (
-                        <motion.div 
-                          key={j.id}
-                          initial={{ opacity: 0, y: 15 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: 0.3 }}
-                          className={`relative ${ESTETICA_TARJETA(isDark).contenedor} ${estadoT.texto.includes('EXPIRADO') ? (isDark ? 'opacity-50' : 'opacity-60 grayscale-[30%]') : ''} ${estaPineado && !estadoT.texto.includes('EXPIRADO') ? (isDark ? 'ring-2 ring-yellow-500 ring-offset-2 ring-offset-slate-950 border-transparent' : 'ring-2 ring-yellow-400 ring-offset-2 ring-offset-slate-100 border-transparent') : ''}`}
-                        >
-                          {/* BOTONES DE CONTROL */}
-                          <div className="absolute top-3 right-3 z-30 flex flex-col gap-1.5 items-center justify-center">
-                            {puedeEliminarOEditar && (
-                              <>
-                                <motion.button
-                                  whileHover={{ scale: 1.1 }}
-                                  onClick={() => eliminarJuntada(j.id)}
-                                  className={`flex items-center justify-center w-6 h-6 rounded-full transition-colors font-bold cursor-pointer text-xs ${j.imagenUrl ? 'text-white/70 hover:bg-white/20 bg-black/20 hover:text-red-400' : (isDark ? 'text-slate-400 bg-slate-800 hover:bg-red-900/30 hover:text-red-400' : 'text-slate-400 hover:bg-red-50 bg-slate-100 hover:text-red-500')}`}
-                                  title="Eliminar juntada"
-                                >
-                                  ✕
-                                </motion.button>
-                                <motion.button
-                                  whileHover={{ scale: 1.1 }}
-                                  onClick={() => abrirEdicion(j)}
-                                  className={`flex items-center justify-center w-6 h-6 rounded-full transition-colors cursor-pointer ${j.imagenUrl ? 'text-white/70 hover:text-white hover:bg-white/20 bg-black/20' : (isDark ? 'text-slate-400 bg-slate-800 hover:bg-violet-900/30 hover:text-violet-400' : 'text-slate-400 hover:text-violet-600 hover:bg-violet-50 bg-slate-100')}`}
-                                  title="Editar juntada"
-                                >
-                                  <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                                </motion.button>
-                              </>
-                            )}
-                            
-                            {/* ICONO DE PIN (CHINCHE) */}
-                            {(esAdminTomas || estaPineado) && (
-                                <motion.button
-                                  whileHover={esAdminTomas ? { scale: 1.1 } : {}}
-                                  onClick={() => esAdminTomas ? togglePin(j.id, j.pineado) : null}
-                                  className={`flex items-center justify-center w-6 h-6 rounded-full transition-colors text-xs ${
-                                    esAdminTomas ? 'cursor-pointer' : 'cursor-default'
-                                  } ${
-                                    estaPineado 
-                                      ? (j.imagenUrl ? 'text-yellow-400 bg-black/40' : (isDark ? 'text-yellow-500 bg-yellow-900/30' : 'text-yellow-600 bg-yellow-100')) 
-                                      : (j.imagenUrl ? 'text-white/70 hover:text-white hover:bg-white/20 bg-black/20' : (isDark ? 'text-slate-400 bg-slate-800 hover:bg-slate-700 hover:text-yellow-500' : 'text-slate-400 hover:text-yellow-600 hover:bg-yellow-50 bg-slate-100'))
-                                  }`}
-                                  title={estaPineado ? "Evento destacado" : "Destacar evento"}
-                                >
-                                  <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
-                                    <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z" />
-                                  </svg>
-                                </motion.button>
-                            )}
-                          </div>
+                          const estadoT = calcularEstadoTiempo(j.timestamp);
 
-                          {/* IDENTIDAD */}
-                          <div className="absolute top-3 left-3 z-20 flex flex-row gap-1.5 items-center">
-                            <span className={`${j.imagenUrl ? 'bg-black/40 backdrop-blur-md text-white border-white/10' : (esDiscord ? (isDark ? 'bg-[#5865F2]/20 text-[#5865F2] border-[#5865F2]/30' : 'bg-[#5865F2]/10 text-[#5865F2] border-[#5865F2]/20') : (isDark ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/50' : 'bg-emerald-50 text-emerald-600 border-emerald-200'))} text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest border shadow-sm flex items-center gap-1.5`}>
-                                {esDiscord ? (
-                                    <>
-                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 127.14 96.36" fill="currentColor" className="w-3 h-3 text-white drop-shadow-sm">
-                                            <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1,105.25,105.25,0,0,0,32.19-16.14h0C127.86,52.43,121.56,29.1,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.31,60,73.31,53s5-12.74,11.43-12.74S96.3,46,96.19,53,91.08,65.69,84.69,65.69Z"/>
-                                        </svg> 
-                                        DISCORD
-                                    </>
-                                ) : '📍 IRL'}
-                            </span>
-                            <span className={`${j.imagenUrl ? 'bg-black/40 backdrop-blur-md text-white border-white/10' : (isDark ? 'bg-violet-900/30 text-violet-300 border-violet-800/50' : 'bg-violet-50 text-violet-600 border-violet-200')} text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest border shadow-sm flex items-center gap-1.5`}>
-                                <img src={getFotoUsuario(j.creador)} className="w-3.5 h-3.5 rounded-full object-cover" alt="creador" />
-                                {j.creador}
-                            </span>
-                          </div>
-
-                          {/* --- HEADER CON IMAGEN --- */}
-                          {j.imagenUrl ? (
-                            <div className="relative -mx-5 -mt-5 mb-4 p-5 rounded-t-2xl overflow-hidden min-h-[160px] flex flex-col justify-end">
-                              <div className="absolute inset-0 bg-cover bg-center z-0" style={{ backgroundImage: `url(${j.imagenUrl})` }} />
-                              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-900/60 to-slate-900/10 z-10" />
-                              
-                              {/* Posicionamiento absoluto en la parte inferior */}
-                              <div className="absolute bottom-3 left-5 right-3 z-20 flex flex-col gap-1.5 pt-16">
-                                <h3 className="text-xl font-black text-white leading-none tracking-tight drop-shadow-md pr-8">{j.titulo}</h3>
+                          return (
+                            <motion.div 
+                              key={j.id}
+                              initial={{ opacity: 0, y: 15 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.3 }}
+                              className={`relative ${ESTETICA_TARJETA(isDark).contenedor} ${estadoT.texto.includes('EXPIRADO') ? (isDark ? 'opacity-50' : 'opacity-60 grayscale-[30%]') : ''} ${estaPineado && !estadoT.texto.includes('EXPIRADO') ? (isDark ? 'ring-2 ring-yellow-500 ring-offset-2 ring-offset-slate-950 border-transparent' : 'ring-2 ring-yellow-400 ring-offset-2 ring-offset-slate-100 border-transparent') : ''}`}
+                            >
+                              {/* BOTONES DE CONTROL */}
+                              <div className="absolute top-3 right-3 z-30 flex flex-col gap-1.5 items-center justify-center">
+                                {puedeEliminarOEditar && (
+                                  <>
+                                    <motion.button
+                                      whileHover={{ scale: 1.1 }}
+                                      onClick={() => eliminarJuntada(j.id)}
+                                      className={`flex items-center justify-center w-6 h-6 rounded-full transition-colors font-bold cursor-pointer text-xs ${j.imagenUrl ? 'text-white/70 hover:bg-white/20 bg-black/20 hover:text-red-400' : (isDark ? 'text-slate-400 bg-slate-800 hover:bg-red-900/30 hover:text-red-400' : 'text-slate-400 hover:bg-red-50 bg-slate-100 hover:text-red-500')}`}
+                                      title="Eliminar juntada"
+                                    >
+                                      ✕
+                                    </motion.button>
+                                    <motion.button
+                                      whileHover={{ scale: 1.1 }}
+                                      onClick={() => abrirEdicion(j)}
+                                      className={`flex items-center justify-center w-6 h-6 rounded-full transition-colors cursor-pointer ${j.imagenUrl ? 'text-white/70 hover:text-white hover:bg-white/20 bg-black/20' : (isDark ? 'text-slate-400 bg-slate-800 hover:bg-violet-900/30 hover:text-violet-400' : 'text-slate-400 hover:text-violet-600 hover:bg-violet-50 bg-slate-100')}`}
+                                      title="Editar juntada"
+                                    >
+                                      <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                                    </motion.button>
+                                  </>
+                                )}
                                 
-                                <div className="flex items-center flex-wrap gap-2 text-slate-200 drop-shadow-md">
-                                  <span className="text-sm">📅</span>
-                                  <p className="text-[10px] font-bold">{j.fechaDisplay} — <span className="text-white">{j.horaDisplay}</span></p>
-                                  
-                                  <span className={`${estadoT.color} bg-opacity-90 text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm`}>
-                                    {estadoT.texto}
-                                  </span>
-                                </div>
-
-                                {esIRL && (
-                                  (j.esSedeFija || j.esSedePersonalizada || esIrremontable) ? (
-                                     <div className="flex items-center gap-1.5 drop-shadow-md">
-                                        <span className="text-xs">{iconoSede}</span>
-                                        <span className="bg-white text-slate-900 border border-slate-200 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
-                                            {(j.esSedeFija || j.esSedePersonalizada) ? j.sedeFinal : `${sedeConfirmada} VOTADA COMO SEDE`}
-                                        </span>
-                                    </div>
-                                  ) : (
-                                     <div className="flex items-center gap-1.5 drop-shadow-md">
-                                        <span className="text-xs">{iconoSede}</span>
-                                        <span className="bg-yellow-400 text-yellow-950 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
-                                            SEDE EN VOTACIÓN
-                                        </span>
-                                    </div>
-                                  )
+                                {/* ICONO DE PIN (CHINCHE) */}
+                                {(esAdminTomas || estaPineado) && (
+                                    <motion.button
+                                      whileHover={esAdminTomas ? { scale: 1.1 } : {}}
+                                      onClick={() => esAdminTomas ? togglePin(j.id, j.pineado) : null}
+                                      className={`flex items-center justify-center w-6 h-6 rounded-full transition-colors text-xs ${
+                                        esAdminTomas ? 'cursor-pointer' : 'cursor-default'
+                                      } ${
+                                        estaPineado 
+                                          ? (j.imagenUrl ? 'text-yellow-400 bg-black/40' : (isDark ? 'text-yellow-500 bg-yellow-900/30' : 'text-yellow-600 bg-yellow-100')) 
+                                          : (j.imagenUrl ? 'text-white/70 hover:text-white hover:bg-white/20 bg-black/20' : (isDark ? 'text-slate-400 bg-slate-800 hover:bg-slate-700 hover:text-yellow-500' : 'text-slate-400 hover:text-yellow-600 hover:bg-yellow-50 bg-slate-100'))
+                                      }`}
+                                      title={estaPineado ? "Evento destacado" : "Destacar evento"}
+                                    >
+                                      <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                                        <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z" />
+                                      </svg>
+                                    </motion.button>
                                 )}
                               </div>
-                            </div>
-                          ) : (
-                            <>
-                                <div className="mb-2.5 mt-14 pr-8 relative">
-                                  <h3 className={`text-xl font-black leading-none tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>{j.titulo}</h3>
+
+                              {/* IDENTIDAD */}
+                              <div className="absolute top-3 left-3 z-20 flex flex-row gap-1.5 items-center">
+                                <span className={`${j.imagenUrl ? 'bg-black/40 backdrop-blur-md text-white border-white/10' : (esDiscord ? (isDark ? 'bg-[#5865F2]/20 text-[#5865F2] border-[#5865F2]/30' : 'bg-[#5865F2]/10 text-[#5865F2] border-[#5865F2]/20') : (isDark ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800/50' : 'bg-emerald-50 text-emerald-600 border-emerald-200'))} text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest border shadow-sm flex items-center gap-1.5`}>
+                                    {esDiscord ? (
+                                        <>
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 127.14 96.36" fill="currentColor" className="w-3 h-3 text-white drop-shadow-sm">
+                                                <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1,105.25,105.25,0,0,0,32.19-16.14h0C127.86,52.43,121.56,29.1,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.31,60,73.31,53s5-12.74,11.43-12.74S96.3,46,96.19,53,91.08,65.69,84.69,65.69Z"/>
+                                            </svg> 
+                                            DISCORD
+                                        </>
+                                    ) : '📍 IRL'}
+                                </span>
+                                <span className={`${j.imagenUrl ? 'bg-black/40 backdrop-blur-md text-white border-white/10' : (isDark ? 'bg-violet-900/30 text-violet-300 border-violet-800/50' : 'bg-violet-50 text-violet-600 border-violet-200')} text-[8px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-widest border shadow-sm flex items-center gap-1.5`}>
+                                    <img src={getFotoUsuario(j.creador)} className="w-3.5 h-3.5 rounded-full object-cover" alt="creador" />
+                                    {j.creador}
+                                </span>
+                              </div>
+
+                              {/* --- HEADER CON IMAGEN --- */}
+                              {j.imagenUrl ? (
+                                <div className="relative -mx-5 -mt-5 mb-4 p-5 rounded-t-2xl overflow-hidden min-h-[160px] flex flex-col justify-end">
+                                  <div className="absolute inset-0 bg-cover bg-center z-0" style={{ backgroundImage: `url(${j.imagenUrl})` }} />
+                                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 via-slate-900/60 to-slate-900/10 z-10" />
+                                  
+                                  <div className="absolute bottom-3 left-5 right-3 z-20 flex flex-col gap-1.5 pt-16">
+                                    <h3 className="text-xl font-black text-white leading-none tracking-tight drop-shadow-md pr-8">{j.titulo}</h3>
+                                    
+                                    <div className="flex items-center flex-wrap gap-2 text-slate-200 drop-shadow-md">
+                                      <span className="text-sm">📅</span>
+                                      <p className="text-[10px] font-bold">{j.fechaDisplay} — <span className="text-white">{j.horaDisplay}</span></p>
+                                      
+                                      <span className={`${estadoT.color} bg-opacity-90 text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm`}>
+                                        {estadoT.texto}
+                                      </span>
+                                    </div>
+
+                                    {esIRL && (
+                                      (j.esSedeFija || j.esSedePersonalizada || esIrremontable) ? (
+                                         <div className="flex items-center gap-1.5 drop-shadow-md">
+                                            <span className="text-xs">{iconoSede}</span>
+                                            <span className="bg-white text-slate-900 border border-slate-200 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
+                                                {(j.esSedeFija || j.esSedePersonalizada) ? j.sedeFinal : `${sedeConfirmada} VOTADA COMO SEDE`}
+                                            </span>
+                                        </div>
+                                      ) : (
+                                         <div className="flex items-center gap-1.5 drop-shadow-md">
+                                            <span className="text-xs">{iconoSede}</span>
+                                            <span className="bg-yellow-400 text-yellow-950 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
+                                                SEDE EN VOTACIÓN
+                                            </span>
+                                        </div>
+                                      )
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                    <div className="mb-2.5 mt-14 pr-8 relative">
+                                      <h3 className={`text-xl font-black leading-none tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>{j.titulo}</h3>
+                                    </div>
+                                    
+                                    <div className="flex flex-col gap-1.5 mb-4">
+                                      <div className={`flex items-center flex-wrap gap-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                        <span className="text-xs">📅</span>
+                                        <p className="text-[10px] font-bold">{j.fechaDisplay} — <span className={isDark ? 'text-white' : 'text-slate-950'}>{j.horaDisplay}</span></p>
+
+                                        <span className={`${estadoT.color} text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm`}>
+                                          {estadoT.texto}
+                                        </span>
+                                      </div>
+
+                                      {esIRL && (
+                                        (j.esSedeFija || j.esSedePersonalizada || esIrremontable) ? (
+                                            <div className={`flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-950'}`}>
+                                              <span className="text-xs">{iconoSede}</span>
+                                              <span className="bg-white text-slate-900 border border-slate-200 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
+                                                  {(j.esSedeFija || j.esSedePersonalizada) ? j.sedeFinal : `${sedeConfirmada} VOTADA COMO SEDE`}
+                                              </span>
+                                          </div>
+                                        ) : (
+                                            <div className={`flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-950'}`}>
+                                              <span className="text-xs">{iconoSede}</span>
+                                              <span className="bg-yellow-400 text-yellow-950 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
+                                                  SEDE EN VOTACIÓN
+                                              </span>
+                                          </div>
+                                        )
+                                      )}
+                                    </div>
+                                </>
+                              )}
+                              
+                              {/* --- SECCIÓN DE VOTACIÓN DE SEDE --- */}
+                              {esIRL && (!j.esSedeFija && !j.esSedePersonalizada && !esIrremontable) && (
+                                <div className="space-y-2 mb-4 mt-1">
+                                  <div className={`p-2.5 border ${RADIO_GENERAL} ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200/80'}`}>
+                                    <p className={`text-[8px] font-black uppercase tracking-widest mb-2 flex justify-between ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                      <span>🗳️ Votación de sede</span>
+                                      <span className="normal-case tracking-normal">Quedan {votosRestantes} votos</span>
+                                    </p>
+                                    <div className="space-y-1.5">
+                                      {j.candidatos.map((c: any) => {
+                                        const vCount = c.votantes?.length || 0;
+                                        const porcentaje = totalVotosSede === 0 ? 0 : Math.round((vCount / totalVotosSede) * 100);
+                                        const yoVoteAca = (c.votantes || []).includes(usuarioLogueado);
+
+                                        return (
+                                          <button 
+                                            key={c.nombre} 
+                                            onClick={() => votarSede(j.id, c.nombre)} 
+                                            className={`relative overflow-hidden w-full flex justify-between items-center px-3 py-1.5 ${RADIO_GENERAL} border transition-all group ${yoVoteAca ? (isDark ? 'border-violet-500 ring-1 ring-violet-900 bg-slate-900' : 'border-violet-400 ring-1 ring-violet-200 bg-violet-50/50') : (isDark ? 'border-slate-700 hover:border-violet-600 bg-slate-900' : 'border-slate-200 hover:border-violet-300 bg-white')}`}
+                                          >
+                                            <motion.div
+                                              className={`absolute left-0 top-0 bottom-0 ${yoVoteAca ? (isDark ? 'bg-violet-900/30' : 'bg-violet-100') : (isDark ? 'bg-slate-800' : 'bg-slate-100/50')}`}
+                                              initial={{ width: 0 }}
+                                              animate={{ width: `${porcentaje}%` }}
+                                              transition={{ duration: 0.3, ease: "easeOut" }}
+                                            />
+                                            <div className="relative z-10 flex justify-between items-center w-full">
+                                              <span className={`text-[10px] font-bold ${yoVoteAca ? (isDark ? 'text-violet-400' : 'text-violet-700') : (isDark ? 'text-slate-300' : 'text-slate-700')}`}>{c.nombre}</span>
+                                              <div className="flex items-center gap-2">
+                                                <div className="flex -space-x-1.5 mr-1">
+                                                    {c.votantes?.slice(0,3).map((v: string) => (
+                                                        <img key={v} src={getFotoUsuario(v)} className={`w-3.5 h-3.5 rounded-full border object-cover ${isDark ? 'border-slate-800' : 'border-white'}`} alt="votante" />
+                                                    ))}
+                                                </div>
+                                                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${vCount > 0 ? (isDark ? 'text-violet-300 bg-violet-900/40' : 'text-violet-600 bg-violet-50') : (isDark ? 'text-slate-500 bg-slate-800/50' : 'text-slate-400 bg-slate-50')}`}>
+                                                  {vCount}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {j.notas && (
+                                <div className={`mb-3 p-2.5 border ${RADIO_GENERAL} ${isDark ? 'bg-violet-900/20 border-violet-800/50' : 'bg-violet-50/50 border-violet-100'}`}>
+                                  <p className={`text-[8px] font-black uppercase tracking-widest mb-0.5 ${isDark ? 'text-violet-400' : 'text-violet-600'}`}>📌 NOTAS:</p>
+                                  <p className={`text-[10px] font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{j.notas}</p>
+                                </div>
+                              )}
+
+                              {j.tags?.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5 mb-4">
+                                    {j.tags.map((t: any) => {
+                                      const icon = TODOS_LOS_TAGS.find(d => d.label === t)?.emoji;
+                                      return <span key={t} className={`text-[8px] font-black px-2 py-0.5 rounded-full border uppercase tracking-widest ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-white text-slate-500 border-slate-200 shadow-sm'}`}>{icon} {t}</span>
+                                    })}
+                                  </div>
+                              )}
+
+                              {/* SECCIÓN ASISTENCIA */}
+                              <div className={`p-2.5 ${RADIO_GENERAL} border mb-3 ${isDark ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50/50 border-slate-200/80'}`}>
+                                <div className={`flex justify-between items-end border-b pb-1.5 mb-1.5 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
+                                  <p className={`text-[8px] font-black uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Asistencia:</p>
+                                  
+                                  <div className="flex gap-0.5">
+                                    {Array.from({ length: AMIGOS_FALLBACK.length }).map((_, i) => (
+                                      <span 
+                                        key={i} 
+                                        className={`text-xs transition-all duration-300 ${i < cantConfirmados ? (isDark ? 'text-violet-500 opacity-100' : 'text-violet-500 opacity-100') : (isDark ? 'text-slate-600 opacity-30 grayscale' : 'text-slate-300 opacity-30 grayscale')}`}
+                                      >
+                                        👤
+                                      </span>
+                                    ))}
+                                  </div>
                                 </div>
                                 
-                                <div className="flex flex-col gap-1.5 mb-4">
-                                  <div className={`flex items-center flex-wrap gap-2 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
-                                    <span className="text-xs">📅</span>
-                                    <p className="text-[10px] font-bold">{j.fechaDisplay} — <span className={isDark ? 'text-white' : 'text-slate-950'}>{j.horaDisplay}</span></p>
+                                {(!j.confirmados?.length && !j.dudosos?.length && !j.rechazados?.length) && <p className={`text-[9px] italic ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Nadie respondió todavía</p>}
+                                {j.confirmados?.length > 0 && <p className={`text-[9px] font-medium mb-0.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>✅ <span className={`font-bold ${isDark ? 'text-green-500' : 'text-green-600'}`}>VAN:</span> {j.confirmados.join(', ')}</p>}
+                                {j.dudosos?.length > 0 && <p className={`text-[9px] font-medium mb-0.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>🤔 <span className={`font-bold ${isDark ? 'text-yellow-500' : 'text-yellow-600'}`}>DUDAN:</span> {j.dudosos.join(', ')}</p>}
+                                {j.rechazados?.length > 0 && <p className={`text-[9px] font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>❌ <span className={`font-bold ${isDark ? 'text-red-500' : 'text-red-500'}`}>PASAN:</span> {j.rechazados.join(', ')}</p>}
+                              </div>
 
-                                    <span className={`${estadoT.color} text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm`}>
-                                      {estadoT.texto}
-                                    </span>
-                                  </div>
+                              {/* --- BOTONES VOY / NO SÉ / NO PUEDO --- */}
+                              <div className="grid grid-cols-3 gap-2 mb-2 relative">
+                                <button 
+                                  onClick={() => toggleAsistencia(j.id, 'voy')}
+                                  className={`h-9 text-[9px] font-black uppercase tracking-widest flex items-center justify-center transition-all duration-200 ${RADIO_GENERAL} border ${voyYo ? (isDark ? 'bg-green-500 text-white border-green-500 shadow-none' : 'bg-green-500 text-white border-green-500 shadow-md shadow-green-200') : (isDark ? 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 shadow-sm')}`}
+                                >VOY</button>
+                                <button 
+                                  onClick={() => toggleAsistencia(j.id, 'nose')}
+                                  className={`h-9 text-[9px] font-black uppercase tracking-widest flex items-center justify-center transition-all duration-200 ${RADIO_GENERAL} border ${dudaYo ? (isDark ? 'bg-yellow-500 text-white border-yellow-500 shadow-none' : 'bg-yellow-500 text-white border-yellow-500 shadow-md shadow-yellow-200') : (isDark ? 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 shadow-sm')}`}
+                                >NO SÉ</button>
+                                <button 
+                                  onClick={() => toggleAsistencia(j.id, 'paso')}
+                                  className={`h-9 text-[9px] font-black uppercase tracking-widest flex items-center justify-center transition-all duration-200 ${RADIO_GENERAL} border ${pasoYo ? (isDark ? 'bg-red-500 text-white border-red-500 shadow-none' : 'bg-red-500 text-white border-red-500 shadow-md shadow-red-200') : (isDark ? 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 shadow-sm')}`}
+                                >PASO</button>
+                              </div>
 
-                                  {esIRL && (
-                                    (j.esSedeFija || j.esSedePersonalizada || esIrremontable) ? (
-                                       <div className={`flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-950'}`}>
-                                          <span className="text-xs">{iconoSede}</span>
-                                          <span className="bg-white text-slate-900 border border-slate-200 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
-                                              {(j.esSedeFija || j.esSedePersonalizada) ? j.sedeFinal : `${sedeConfirmada} VOTADA COMO SEDE`}
-                                          </span>
-                                      </div>
-                                    ) : (
-                                       <div className={`flex items-center gap-1.5 ${isDark ? 'text-white' : 'text-slate-950'}`}>
-                                          <span className="text-xs">{iconoSede}</span>
-                                          <span className="bg-yellow-400 text-yellow-950 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm">
-                                              SEDE EN VOTACIÓN
-                                          </span>
-                                      </div>
-                                    )
-                                  )}
-                                </div>
-                            </>
-                          )}
-                          
-                          {/* --- SECCIÓN DE VOTACIÓN DE SEDE --- */}
-                          {esIRL && (!j.esSedeFija && !j.esSedePersonalizada && !esIrremontable) && (
-                            <div className="space-y-2 mb-4 mt-1">
-                              <div className={`p-2.5 border ${RADIO_GENERAL} ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200/80'}`}>
-                                <p className={`text-[8px] font-black uppercase tracking-widest mb-2 flex justify-between ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                                  <span>🗳️ Votación de sede</span>
-                                  <span className="normal-case tracking-normal">Quedan {votosRestantes} votos</span>
-                                </p>
-                                <div className="space-y-1.5">
-                                  {j.candidatos.map((c: any) => {
-                                    const vCount = c.votantes?.length || 0;
-                                    const porcentaje = totalVotosSede === 0 ? 0 : Math.round((vCount / totalVotosSede) * 100);
-                                    const yoVoteAca = (c.votantes || []).includes(usuarioLogueado);
+                              {/* --- BOTÓN WHATSAPP --- */}
+                              <button 
+                                onClick={() => compartirWhatsApp(j)}
+                                className={`w-full flex items-center justify-center gap-1.5 py-2 mb-1 text-[9px] font-black uppercase tracking-widest transition-colors ${isDark ? 'text-green-500 hover:text-green-400' : 'text-green-600 hover:text-green-700'}`}
+                              >
+                                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.305-.88-.653-1.473-1.46-1.646-1.757-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51h-.57c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                                AVISAR POR WA
+                              </button>
+
+                              {/* --- ZONA DE COMENTARIOS INLINE --- */}
+                              <div className={`mt-auto pt-3 border-t flex-1 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+                                <div className="space-y-1 mb-2 max-h-32 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
+                                  {(j.excusas || []).map((c: any, idx: number) => {
+                                    let ringColor = 'border-transparent';
+                                    if ((j.confirmados || []).includes(c.usuario)) ringColor = `ring-2 ring-green-500 ring-offset-1 ${isDark ? 'ring-offset-slate-900' : 'ring-offset-white'}`;
+                                    else if ((j.dudosos || []).includes(c.usuario)) ringColor = `ring-2 ring-yellow-400 ring-offset-1 ${isDark ? 'ring-offset-slate-900' : 'ring-offset-white'}`;
+                                    else if ((j.rechazados || []).includes(c.usuario)) ringColor = `ring-2 ring-red-500 ring-offset-1 ${isDark ? 'ring-offset-slate-900' : 'ring-offset-white'}`;
 
                                     return (
-                                      <button 
-                                        key={c.nombre} 
-                                        onClick={() => votarSede(j.id, c.nombre)} 
-                                        className={`relative overflow-hidden w-full flex justify-between items-center px-3 py-1.5 ${RADIO_GENERAL} border transition-all group ${yoVoteAca ? (isDark ? 'border-violet-500 ring-1 ring-violet-900 bg-slate-900' : 'border-violet-400 ring-1 ring-violet-200 bg-violet-50/50') : (isDark ? 'border-slate-700 hover:border-violet-600 bg-slate-900' : 'border-slate-200 hover:border-violet-300 bg-white')}`}
-                                      >
-                                        <motion.div
-                                          className={`absolute left-0 top-0 bottom-0 ${yoVoteAca ? (isDark ? 'bg-violet-900/30' : 'bg-violet-100') : (isDark ? 'bg-slate-800' : 'bg-slate-100/50')}`}
-                                          initial={{ width: 0 }}
-                                          animate={{ width: `${porcentaje}%` }}
-                                          transition={{ duration: 0.3, ease: "easeOut" }}
-                                        />
-                                        <div className="relative z-10 flex justify-between items-center w-full">
-                                          <span className={`text-[10px] font-bold ${yoVoteAca ? (isDark ? 'text-violet-400' : 'text-violet-700') : (isDark ? 'text-slate-300' : 'text-slate-700')}`}>{c.nombre}</span>
-                                          <div className="flex items-center gap-2">
-                                            <div className="flex -space-x-1.5 mr-1">
-                                                {c.votantes?.slice(0,3).map((v: string) => (
-                                                    <img key={v} src={getFotoUsuario(v)} className={`w-3.5 h-3.5 rounded-full border object-cover ${isDark ? 'border-slate-800' : 'border-white'}`} alt="votante" />
-                                                ))}
-                                            </div>
-                                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded ${vCount > 0 ? (isDark ? 'text-violet-300 bg-violet-900/40' : 'text-violet-600 bg-violet-50') : (isDark ? 'text-slate-500 bg-slate-800/50' : 'text-slate-400 bg-slate-50')}`}>
-                                              {vCount}
-                                            </span>
-                                          </div>
+                                      <div key={idx} className={`flex items-center gap-2 group relative py-1 rounded-lg px-1 transition-colors ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50'}`}>
+                                        <img src={getFotoUsuario(c.usuario)} className={`w-5 h-5 rounded-full object-cover shadow-sm shrink-0 ${ringColor}`} alt="avatar" />
+                                        <div className={`flex-1 text-[9px] font-medium leading-tight line-clamp-3 break-words ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                                          <span className={`font-black uppercase mr-1 ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>{c.usuario}:</span>
+                                          {c.texto}
                                         </div>
-                                      </button>
+                                        {c.usuario === usuarioLogueado && (
+                                          <button onClick={() => borrarComentario(j.id, c.texto)} className={`font-bold text-[9px] transition-colors ml-2 px-1 ${isDark ? 'text-slate-500 hover:text-red-400' : 'text-slate-400 hover:text-red-500'}`} title="Borrar comentario">✕</button>
+                                        )}
+                                      </div>
                                     );
                                   })}
                                 </div>
-                              </div>
-                            </div>
-                          )}
 
-                          {j.notas && (
-                            <div className={`mb-3 p-2.5 border ${RADIO_GENERAL} ${isDark ? 'bg-violet-900/20 border-violet-800/50' : 'bg-violet-50/50 border-violet-100'}`}>
-                              <p className={`text-[8px] font-black uppercase tracking-widest mb-0.5 ${isDark ? 'text-violet-400' : 'text-violet-600'}`}>📌 NOTAS:</p>
-                              <p className={`text-[10px] font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{j.notas}</p>
-                            </div>
-                          )}
-
-                          {j.tags?.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5 mb-4">
-                                {j.tags.map((t: any) => {
-                                  const icon = TODOS_LOS_TAGS.find(d => d.label === t)?.emoji;
-                                  return <span key={t} className={`text-[8px] font-black px-2 py-0.5 rounded-full border uppercase tracking-widest ${isDark ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-white text-slate-500 border-slate-200 shadow-sm'}`}>{icon} {t}</span>
-                                })}
-                              </div>
-                          )}
-
-                          {/* SECCIÓN ASISTENCIA */}
-                          <div className={`p-2.5 ${RADIO_GENERAL} border mb-3 ${isDark ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50/50 border-slate-200/80'}`}>
-                            <div className={`flex justify-between items-end border-b pb-1.5 mb-1.5 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-                              <p className={`text-[8px] font-black uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Asistencia:</p>
-                              
-                              <div className="flex gap-0.5">
-                                {Array.from({ length: AMIGOS_FALLBACK.length }).map((_, i) => (
-                                  <span 
-                                    key={i} 
-                                    className={`text-xs transition-all duration-300 ${i < cantConfirmados ? (isDark ? 'text-violet-500 opacity-100' : 'text-violet-500 opacity-100') : (isDark ? 'text-slate-600 opacity-30 grayscale' : 'text-slate-300 opacity-30 grayscale')}`}
+                                <div className="relative w-full mt-2">
+                                  <input 
+                                    type="text"
+                                    maxLength={120} 
+                                    placeholder="Escribí un comentario..." 
+                                    value={comentariosInputs[j.id] || ''}
+                                    onChange={(e) => setComentariosInputs(prev => ({ ...prev, [j.id]: e.target.value }))}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') agregarComentario(j.id); }}
+                                    className={`w-full h-8 pl-3 pr-8 rounded-lg text-[9px] font-bold outline-none focus:ring-1 transition-all border ${isDark ? 'bg-slate-900 border-slate-700 text-white focus:ring-violet-500 placeholder:text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-800 focus:ring-violet-300 placeholder:text-slate-400'}`}
+                                  />
+                                  <button 
+                                    onClick={() => agregarComentario(j.id)}
+                                    className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-violet-600 hover:bg-violet-700 text-white rounded-md flex items-center justify-center shadow-sm active:scale-95 transition-all"
                                   >
-                                    👤
-                                  </span>
-                                ))}
+                                    <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                            
-                            {(!j.confirmados?.length && !j.dudosos?.length && !j.rechazados?.length) && <p className={`text-[9px] italic ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Nadie respondió todavía</p>}
-                            {j.confirmados?.length > 0 && <p className={`text-[9px] font-medium mb-0.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>✅ <span className={`font-bold ${isDark ? 'text-green-500' : 'text-green-600'}`}>VAN:</span> {j.confirmados.join(', ')}</p>}
-                            {j.dudosos?.length > 0 && <p className={`text-[9px] font-medium mb-0.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>🤔 <span className={`font-bold ${isDark ? 'text-yellow-500' : 'text-yellow-600'}`}>DUDAN:</span> {j.dudosos.join(', ')}</p>}
-                            {j.rechazados?.length > 0 && <p className={`text-[9px] font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>❌ <span className={`font-bold ${isDark ? 'text-red-500' : 'text-red-500'}`}>PASAN:</span> {j.rechazados.join(', ')}</p>}
-                          </div>
 
-                          {/* --- BOTONES VOY / NO SÉ / NO PUEDO --- */}
-                          <div className="grid grid-cols-3 gap-2 mb-2 relative">
-                            <button 
-                              onClick={() => toggleAsistencia(j.id, 'voy')}
-                              className={`h-9 text-[9px] font-black uppercase tracking-widest flex items-center justify-center transition-all duration-200 ${RADIO_GENERAL} border ${voyYo ? (isDark ? 'bg-green-500 text-white border-green-500 shadow-none' : 'bg-green-500 text-white border-green-500 shadow-md shadow-green-200') : (isDark ? 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 shadow-sm')}`}
-                            >VOY</button>
-                            <button 
-                              onClick={() => toggleAsistencia(j.id, 'nose')}
-                              className={`h-9 text-[9px] font-black uppercase tracking-widest flex items-center justify-center transition-all duration-200 ${RADIO_GENERAL} border ${dudaYo ? (isDark ? 'bg-yellow-500 text-white border-yellow-500 shadow-none' : 'bg-yellow-500 text-white border-yellow-500 shadow-md shadow-yellow-200') : (isDark ? 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 shadow-sm')}`}
-                            >NO SÉ</button>
-                            <button 
-                              onClick={() => toggleAsistencia(j.id, 'paso')}
-                              className={`h-9 text-[9px] font-black uppercase tracking-widest flex items-center justify-center transition-all duration-200 ${RADIO_GENERAL} border ${pasoYo ? (isDark ? 'bg-red-500 text-white border-red-500 shadow-none' : 'bg-red-500 text-white border-red-500 shadow-md shadow-red-200') : (isDark ? 'bg-slate-900 border-slate-700 text-slate-400 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 shadow-sm')}`}
-                            >PASO</button>
-                          </div>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                          {/* --- BOTÓN WHATSAPP --- */}
-                          <button 
-                            onClick={() => compartirWhatsApp(j)}
-                            className={`w-full flex items-center justify-center gap-1.5 py-2 mb-1 text-[9px] font-black uppercase tracking-widest transition-colors ${isDark ? 'text-green-500 hover:text-green-400' : 'text-green-600 hover:text-green-700'}`}
-                          >
-                            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.305-.88-.653-1.473-1.46-1.646-1.757-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51h-.57c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                            AVISAR POR WA
-                          </button>
+                {/* ------ CONTENIDO: SHITPOST ------ */}
+                {vistaPrincipal === 'POSTEOS' && (
+                  <div className="flex-1 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <div className="flex justify-between items-end mb-4 px-1">
+                      <h2 className={`text-2xl font-black tracking-tighter uppercase flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                        SHITPOST <span className="text-lg">📸</span>
+                      </h2>
+                      <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { setMostrandoFormPosteo(true); }} className={`bg-violet-600 text-white font-black shadow-md shadow-violet-200 hover:bg-violet-700 transition-all uppercase tracking-widest flex items-center justify-center text-[10px] px-4 h-8 ${RADIO_GENERAL} ${isDark ? 'shadow-none' : ''}`}>+ POSTEAR</motion.button>
+                    </div>
 
-                          {/* --- ZONA DE COMENTARIOS INLINE (AL FINAL) --- */}
-                          <div className={`mt-auto pt-3 border-t flex-1 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
-                            {/* Lista de Comentarios */}
-                            <div className="space-y-1 mb-2 max-h-32 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
-                              {(j.excusas || []).map((c: any, idx: number) => {
-                                let ringColor = 'border-transparent';
-                                if ((j.confirmados || []).includes(c.usuario)) ringColor = `ring-2 ring-green-500 ring-offset-1 ${isDark ? 'ring-offset-slate-900' : 'ring-offset-white'}`;
-                                else if ((j.dudosos || []).includes(c.usuario)) ringColor = `ring-2 ring-yellow-400 ring-offset-1 ${isDark ? 'ring-offset-slate-900' : 'ring-offset-white'}`;
-                                else if ((j.rechazados || []).includes(c.usuario)) ringColor = `ring-2 ring-red-500 ring-offset-1 ${isDark ? 'ring-offset-slate-900' : 'ring-offset-white'}`;
+                    {posteos.length === 0 ? (
+                      <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className={`border-2 border-dashed ${RADIO_GENERAL} py-12 flex flex-col items-center justify-center text-center mt-2 ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-300/60'}`}>
+                        <div className="text-3xl mb-3 opacity-30">👻</div>
+                        <p className={`text-[10px] font-bold mb-5 uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Mucho silencio visual...</p>
+                        <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => { setMostrandoFormPosteo(true); }} className={`bg-violet-600 text-white font-black shadow-md shadow-violet-200 hover:bg-violet-700 transition-all uppercase tracking-widest flex items-center justify-center text-xs px-6 h-10 ${RADIO_GENERAL} ${isDark ? 'shadow-none' : ''}`}>+ POSTEAR</motion.button>
+                      </motion.div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+                        {posteos.map((p) => {
+                          const esCreadorPost = usuarioLogueado === p.creador;
+                          const esAdminTomasPost = usuarioLogueado === 'Tomas';
+                          const puedeEliminarPost = esCreadorPost || esAdminTomasPost;
+                          const yoLeDiLike = (p.likes || []).includes(usuarioLogueado);
+                          const creadorLabel = p.anonimo ? '🕵️ ANÓNIMO' : p.creador;
 
-                                return (
-                                  <div key={idx} className={`flex items-center gap-2 group relative py-1 rounded-lg px-1 transition-colors ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50'}`}>
-                                    <img src={getFotoUsuario(c.usuario)} className={`w-5 h-5 rounded-full object-cover shadow-sm shrink-0 ${ringColor}`} alt="avatar" />
-                                    <div className={`flex-1 text-[9px] font-medium leading-tight line-clamp-3 break-words ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                                      <span className={`font-black uppercase mr-1 ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>{c.usuario}:</span>
-                                      {c.texto}
+                          return (
+                            <motion.div 
+                              key={p.id}
+                              initial={{ opacity: 0, y: 15 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.3 }}
+                              className={`${ESTETICA_TARJETA(isDark).contenedor} !p-0 overflow-hidden relative`}
+                            >
+                              {/* IMAGEN DEL POSTEO */}
+                              <div className="relative w-full aspect-square bg-slate-100 dark:bg-slate-800">
+                                <img src={p.imagenUrl} className="w-full h-full object-cover" alt="shitpost" loading="lazy" />
+                                
+                                {/* DEGRADADO TOP PARA QUE SE LEA EL TAG Y EL BOTON DE ELIMINAR */}
+                                <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-transparent h-24 pointer-events-none z-10" />
+
+                                {/* TEXTO SOBRE LA IMAGEN TIPO MEME */}
+                                {p.texto && (
+                                  <>
+                                    <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none z-10" />
+                                    <div className="absolute bottom-4 left-4 right-4 z-20 flex flex-col justify-end">
+                                      <h2 className="text-white text-xl sm:text-2xl font-black leading-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                                        {p.texto}
+                                      </h2>
                                     </div>
-                                    {c.usuario === usuarioLogueado && (
-                                      <button onClick={() => borrarComentario(j.id, c.texto)} className={`font-bold text-[9px] transition-colors ml-2 px-1 ${isDark ? 'text-slate-500 hover:text-red-400' : 'text-slate-400 hover:text-red-500'}`} title="Borrar comentario">✕</button>
-                                    )}
+                                  </>
+                                )}
+
+                                {/* TAG DEL CREADOR (TOP LEFT) */}
+                                <div className="absolute top-3 left-3 z-20">
+                                  <span className="bg-black/40 backdrop-blur-md text-white border-white/10 text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest border shadow-sm flex items-center gap-1.5">
+                                      <img src={getFotoUsuario(p.anonimo ? 'ANÓNIMO' : p.creador)} className="w-4 h-4 rounded-full object-cover border border-white/20" alt="creador" />
+                                      {creadorLabel}
+                                  </span>
+                                </div>
+
+                                {/* ELIMINAR POST (TOP RIGHT) */}
+                                {puedeEliminarPost && (
+                                  <div className="absolute top-3 right-3 z-20">
+                                    <motion.button
+                                        whileHover={{ scale: 1.1 }}
+                                        onClick={() => eliminarPosteo(p.id)}
+                                        className="flex items-center justify-center w-7 h-7 rounded-full transition-colors font-bold cursor-pointer text-xs text-white/70 hover:bg-white/20 bg-black/40 backdrop-blur-md hover:text-red-400"
+                                        title="Eliminar posteo"
+                                      >
+                                        ✕
+                                    </motion.button>
                                   </div>
-                                );
-                              })}
-                            </div>
+                                )}
+                              </div>
 
-                            {/* Input para Nuevo Comentario */}
-                            <div className="relative w-full mt-2">
-                              <input 
-                                type="text"
-                                maxLength={120} 
-                                placeholder="Escribí un comentario..." 
-                                value={comentariosInputs[j.id] || ''}
-                                onChange={(e) => setComentariosInputs(prev => ({ ...prev, [j.id]: e.target.value }))}
-                                onKeyDown={(e) => { if (e.key === 'Enter') agregarComentario(j.id); }}
-                                className={`w-full h-8 pl-3 pr-8 rounded-lg text-[9px] font-bold outline-none focus:ring-1 transition-all border ${isDark ? 'bg-slate-900 border-slate-700 text-white focus:ring-violet-500 placeholder:text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-800 focus:ring-violet-300 placeholder:text-slate-400'}`}
-                              />
-                              <button 
-                                onClick={() => agregarComentario(j.id)}
-                                className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 bg-violet-600 hover:bg-violet-700 text-white rounded-md flex items-center justify-center shadow-sm active:scale-95 transition-all"
-                              >
-                                <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-                              </button>
-                            </div>
-                          </div>
+                              {/* ZONA DE CONTENIDO Y ACCIONES */}
+                              <div className="p-4 flex flex-col gap-3">
+                                
+                                {/* ICONOS DE ACCIÓN */}
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <motion.button 
+                                      whileTap={{ scale: 0.8 }}
+                                      onClick={() => toggleLikePosteo(p.id)}
+                                      className="flex items-center gap-1.5 focus:outline-none"
+                                    >
+                                      <svg viewBox="0 0 24 24" width="22" height="22" fill={yoLeDiLike ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2.5" className={`transition-colors duration-300 ${yoLeDiLike ? 'text-red-500' : (isDark ? 'text-slate-400 hover:text-slate-300' : 'text-slate-500 hover:text-slate-700')}`}>
+                                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                                      </svg>
+                                      {(p.likes?.length > 0) && (
+                                        <span className={`text-xs font-black ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>{p.likes.length}</span>
+                                      )}
+                                    </motion.button>
+                                  </div>
+                                  <span className={`text-[9px] font-bold uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                    Hace un rato
+                                  </span>
+                                </div>
 
-                        </motion.div>
-                      );
-                    })}
+                                {/* COMENTARIOS SHITPOST (Mismo estilo que juntadas) */}
+                                <div className={`pt-3 border-t flex-1 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+                                  <div className="space-y-1 mb-2 max-h-32 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
+                                    {(p.comentarios || []).map((c: any, idx: number) => (
+                                      <div key={idx} className={`flex items-center gap-2 group relative py-1 rounded-lg px-1 transition-colors ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50'}`}>
+                                        <img src={getFotoUsuario(c.usuario)} className={`w-5 h-5 rounded-full object-cover shadow-sm shrink-0 border-transparent`} alt="avatar" />
+                                        <div className={`flex-1 text-[9px] font-medium leading-tight line-clamp-3 break-words ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                                          <span className={`font-black uppercase mr-1 ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>{c.usuario}:</span>
+                                          {c.texto}
+                                        </div>
+                                        {/* Permite borrar si soy yo, o si lo publiqué anónimo pero soy el dueño real */}
+                                        {(c.usuario === usuarioLogueado || c.creador_real === usuarioLogueado) && (
+                                          <button onClick={() => borrarComentarioPosteo(p.id, idx)} className={`font-bold text-[9px] transition-colors ml-2 px-1 ${isDark ? 'text-slate-500 hover:text-red-400' : 'text-slate-400 hover:text-red-500'}`} title="Borrar comentario">✕</button>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+
+                                  <div className="flex flex-col gap-1.5">
+                                    <div className="relative w-full">
+                                      <input 
+                                        type="text"
+                                        maxLength={150} 
+                                        placeholder="Escribí un comentario..." 
+                                        value={comentariosPostInputs[p.id] || ''}
+                                        onChange={(e) => setComentariosPostInputs(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') agregarComentarioPosteo(p.id); }}
+                                        className={`w-full h-8 pl-3 pr-8 rounded-lg text-[9px] font-bold outline-none focus:ring-1 transition-all border ${isDark ? 'bg-slate-900 border-slate-700 text-white focus:ring-violet-500 placeholder:text-slate-500' : 'bg-slate-50 border-slate-200 text-slate-800 focus:ring-violet-300 placeholder:text-slate-400'}`}
+                                      />
+                                      <button 
+                                        onClick={() => agregarComentarioPosteo(p.id)}
+                                        className={`absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 rounded-md flex items-center justify-center transition-all ${comentariosPostInputs[p.id]?.trim() ? 'bg-violet-600 hover:bg-violet-700 text-white shadow-sm active:scale-95' : (isDark ? 'text-slate-600' : 'text-slate-400')}`}
+                                        disabled={!comentariosPostInputs[p.id]?.trim()}
+                                      >
+                                        <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                                      </button>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-1.5 ml-1">
+                                      <input 
+                                        type="checkbox" 
+                                        id={`anon-com-${p.id}`}
+                                        checked={comentarioAnonimoPost[p.id] || false}
+                                        onChange={(e) => setComentarioAnonimoPost(prev => ({ ...prev, [p.id]: e.target.checked }))}
+                                        className="w-3 h-3 text-violet-600 bg-slate-100 border-slate-300 rounded focus:ring-violet-500 cursor-pointer"
+                                      />
+                                      <label htmlFor={`anon-com-${p.id}`} className={`text-[8px] font-black uppercase tracking-widest cursor-pointer ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                        Comentar Anónimo
+                                      </label>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-
-              {/* --- ZONA DERECHA / ARRIBA: WIDGET DISCORD INTEGRADO --- */}
-              {/* lg:mt-[38px] asegura que quede simétrico con la primera tarjeta de propuestas */}
-              <div className="w-full lg:w-[300px] xl:w-[320px] shrink-0 order-1 lg:order-2 lg:sticky lg:top-6 mt-0 lg:mt-[38px]">
+              
+              {/* --- ZONA DERECHA: WIDGET DISCORD INTEGRADO --- */}
+              <div className="w-full lg:w-[280px] xl:w-[320px] shrink-0 order-1 lg:order-2 lg:sticky lg:top-6 mt-0">
                 <motion.div 
                   initial={{ opacity: 0, y: 15 }} 
                   animate={{ opacity: 1, y: 0 }} 
@@ -1296,7 +1689,6 @@ export default function Home() {
                               {c.name}
                             </p>
                             
-                            {/* Flex wrap con w-fit para pastillas ajustadas SIN ESPACIO FANTASMA */}
                             <div className="flex flex-wrap gap-2">
                               {c.members.map((m: any) => (
                                 <div key={m.id} className={`w-fit inline-flex items-center gap-2 p-1 pr-3 rounded-full border transition-all cursor-default ${isDark ? 'bg-slate-800/50 border-slate-700 hover:border-violet-500/50 hover:bg-slate-800' : 'bg-slate-50 border-slate-200 hover:border-violet-300 hover:bg-white shadow-sm'}`}>
