@@ -7,7 +7,7 @@ export const revalidate = 0;
 // Estas variables viven en la memoria RAM del servidor
 let cachedDiscordData: any = null;
 let lastFetchTime = 0;
-const CACHE_DURATION = 60000; // 1 minuto exacto de protección
+const CACHE_DURATION = 4000; // 4 segundos — refresca casi en tiempo real sin martillar a Discord
 
 export async function GET() {
   const now = Date.now();
